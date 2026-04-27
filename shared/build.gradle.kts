@@ -44,6 +44,7 @@ kotlin {
             implementation(libs.koin.android)
             implementation(libs.revenuecat)
             implementation(libs.sentry.android)
+            implementation(libs.posthog.android) // AnalyticsProvider (androidMain) usa PostHog SDK
         }
 
         val desktopMain by getting {
