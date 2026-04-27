@@ -1,8 +1,11 @@
 package com.sierraespada.wakeywakey.alarm
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import com.sierraespada.wakeywakey.calendar.AndroidCalendarRepository
 import com.sierraespada.wakeywakey.scheduler.AndroidAlarmScheduler
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +24,13 @@ class BootReceiver : BroadcastReceiver() {
         if (action != Intent.ACTION_BOOT_COMPLETED &&
             action != Intent.ACTION_MY_PACKAGE_REPLACED
         ) return
+
+        // Comprobar permiso antes de tocar el calendario
+        val hasCalendarPermission = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.READ_CALENDAR
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasCalendarPermission) return   // Sin permiso no hay nada que reprogramar
 
         val pendingResult = goAsync()   // BroadcastReceiver puede hacer trabajo asíncrono
 

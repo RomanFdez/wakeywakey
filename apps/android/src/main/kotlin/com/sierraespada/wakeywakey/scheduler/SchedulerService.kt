@@ -1,13 +1,15 @@
 package com.sierraespada.wakeywakey.scheduler
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.sierraespada.wakeywakey.alarm.AlarmReceiver
+import androidx.core.content.ContextCompat
 import com.sierraespada.wakeywakey.calendar.AndroidCalendarRepository
 import kotlinx.coroutines.*
 
@@ -36,15 +38,32 @@ class SchedulerService : Service() {
     }
 
     private fun scheduleUpcomingAlarms() {
-        scope.launch {
-            val repo      = AndroidCalendarRepository(applicationContext)
-            val scheduler = AndroidAlarmScheduler(applicationContext)
-            val now       = System.currentTimeMillis()
-            val tomorrow  = now + 24 * 60 * 60 * 1000L
+        // Si el usuario todavía no ha concedido el permiso de calendario (Slice 2
+        // implementa el onboarding que lo solicita), salimos silenciosamente.
+        val hasCalendarPermission = ContextCompat.checkSelfPermission(
+            applicationContext, Manifest.permission.READ_CALENDAR
+        ) == PackageManager.PERMISSION_GRANTED
 
-            val events = repo.getUpcomingEvents(fromTime = now, toTime = tomorrow)
-            scheduler.rescheduleAll(events, minutesBefore = 1) // TODO: leer de UserSettings
+        if (!hasCalendarPermission) {
             stopSelf()
+            return
+        }
+
+        scope.launch {
+            try {
+                val repo      = AndroidCalendarRepository(applicationContext)
+                val scheduler = AndroidAlarmScheduler(applicationContext)
+                val now       = System.currentTimeMillis()
+                val tomorrow  = now + 24 * 60 * 60 * 1000L
+
+                val events = repo.getUpcomingEvents(fromTime = now, toTime = tomorrow)
+                scheduler.rescheduleAll(events, minutesBefore = 1) // TODO: leer de UserSettings
+            } catch (e: SecurityException) {
+                // El usuario revocó el permiso mientras el servicio corría
+                android.util.Log.w("SchedulerService", "Calendar permission revoked: ${e.message}")
+            } finally {
+                stopSelf()
+            }
         }
     }
 
