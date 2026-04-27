@@ -5,7 +5,12 @@ package com.sierraespada.wakeywakey.analytics
 // cuando tengamos el Application class completamente inicializado.
 actual object AnalyticsProvider {
 
-    private val analytics: Analytics = StubAnalytics
+    // TaggedAnalytics añade app:"wakeywakey" a todos los eventos automáticamente.
+    // El proyecto PostHog es compartido entre apps de SierraEspada.
+    private val analytics: Analytics = TaggedAnalytics(
+        delegate       = StubAnalytics,
+        baseProperties = mapOf("app" to "wakeywakey")
+    )
 
     actual fun initialize(apiKey: String, host: String) {
         println("[Analytics] Initialized (Android stub) — apiKey=${apiKey.take(8)}…")
@@ -21,7 +26,7 @@ private object StubAnalytics : Analytics {
     }
 
     override fun identify(userId: String, traits: Map<String, Any>) {
-        println("[Analytics] identify: $userId")
+        println("[Analytics] identify: $userId $traits")
     }
 
     override fun screen(screenName: String) {
