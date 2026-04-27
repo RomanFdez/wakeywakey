@@ -1,34 +1,30 @@
 package com.sierraespada.wakeywakey.analytics
 
-import com.posthog.java.PostHog
-
+// TODO Fase 5 (Windows): integrar PostHog JVM SDK cuando confirmemos coordenadas Maven.
+// Por ahora implementación stub que loguea a consola en desarrollo.
 actual object AnalyticsProvider {
 
-    private lateinit var analytics: Analytics
+    private val analytics: Analytics = StubAnalytics
 
     actual fun initialize(apiKey: String, host: String) {
-        val client = PostHog.Builder(apiKey).host(host).build()
-        analytics = PostHogDesktopAnalytics(client)
+        println("[Analytics] Initialized (stub) — apiKey=${apiKey.take(8)}…")
     }
 
     actual val instance: Analytics get() = analytics
 }
 
-private class PostHogDesktopAnalytics(private val client: PostHog) : Analytics {
-
+private object StubAnalytics : Analytics {
     override fun track(event: String, properties: Map<String, Any>) {
-        client.capture("desktop_user", event, properties)
+        println("[Analytics] track: $event $properties")
     }
 
     override fun identify(userId: String, traits: Map<String, Any>) {
-        client.identify(userId, traits, emptyMap())
+        println("[Analytics] identify: $userId")
     }
 
     override fun screen(screenName: String) {
-        client.capture("desktop_user", "screen_viewed", mapOf("screen" to screenName))
+        println("[Analytics] screen: $screenName")
     }
 
-    override fun flush() {
-        client.shutdown()
-    }
+    override fun flush() {}
 }

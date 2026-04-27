@@ -11,7 +11,7 @@ revenuecat           = "8.0.0"
 sentry               = "7.20.0"
 sentry-plugin        = "6.5.0"
 posthog-android      = "3.4.0"
-posthog-java         = "1.2.0"
+# posthog-java — añadir en Fase 5 cuando confirmemos coordenadas Maven correctas
 activity-compose     = "1.9.3"
 lifecycle            = "2.8.7"
 
@@ -48,7 +48,7 @@ sentry-jvm                   = { module = "io.sentry:sentry",         version.re
 
 # Analytics — PostHog
 posthog-android              = { module = "com.posthog:posthog-android", version.ref = "posthog-android" }
-posthog-java                 = { module = "com.posthog:posthog-java",    version.ref = "posthog-java" }
+# posthog-java — pendiente Fase 5 (Windows)
 
 [plugins]
 android-application    = { id = "com.android.application",                          version.ref = "agp" }

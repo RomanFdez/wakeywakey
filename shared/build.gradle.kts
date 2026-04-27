@@ -51,7 +51,7 @@ kotlin {
                 implementation(compose.desktop.currentOs)
                 implementation(libs.kotlinx.coroutines.swing)
                 implementation(libs.sentry.jvm)
-                implementation(libs.posthog.java)
+                // posthog-java añadir en Fase 5 (Windows) cuando confirmemos coordenadas Maven correctas
             }
         }
     }
