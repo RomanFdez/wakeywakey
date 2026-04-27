@@ -114,6 +114,7 @@ private fun EmptyState() {
 @Composable
 private fun EventList(state: HomeUiState) {
     LazyColumn(
+        modifier            = Modifier.fillMaxSize(),
         contentPadding      = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {

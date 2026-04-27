@@ -51,7 +51,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 val events   = repo.getUpcomingEvents(fromTime = now - 5 * 60_000L, toTime = endOfDay)
                 _uiState.update { it.copy(isLoading = false, events = events) }
             } catch (e: SecurityException) {
-                _uiState.update { it.copy(isLoading = false, error = "Permiso de calendario revocado.") }
+                _uiState.update { it.copy(isLoading = false, error = "Calendar permission revoked.") }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
             }
