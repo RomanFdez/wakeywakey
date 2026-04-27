@@ -34,12 +34,11 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sierraespada.wakeywakey.ui.theme.WakeyWakeyTheme
 
-// ─── Brand colours (inline para no depender de un objeto Colors externo) ──────
 private val Yellow = Color(0xFFFFE03A)
 private val Navy   = Color(0xFF1A1A2E)
 private val Green  = Color(0xFF4CAF50)
 
-// ─── Modelo de ítem de permiso ────────────────────────────────────────────────
+// ─── Permission item model ────────────────────────────────────────────────────
 
 private enum class PermAction { CALENDAR, NOTIFICATIONS, EXACT_ALARM, BATTERY, FULL_SCREEN }
 
@@ -54,39 +53,39 @@ private data class PermItem(
 private val PERM_ITEMS = listOf(
     PermItem(
         emoji     = "📅",
-        title     = "Acceso al calendario",
-        rationale = "Lee tus reuniones para programar alertas. Los datos nunca salen de tu dispositivo.",
+        title     = "Calendar access",
+        rationale = "Reads your meetings to schedule alerts. Your data never leaves your device.",
         action    = PermAction.CALENDAR,
     ),
     PermItem(
         emoji     = "🔔",
-        title     = "Notificaciones",
-        rationale = "Envía la alerta de reunión como notificación de alta prioridad.",
+        title     = "Notifications",
+        rationale = "Sends the meeting alert as a high-priority notification.",
         action    = PermAction.NOTIFICATIONS,
     ),
     PermItem(
         emoji     = "⏰",
-        title     = "Alarmas exactas",
-        rationale = "Android 12+ requiere permiso especial para activar alarmas a la hora exacta.",
+        title     = "Exact alarms",
+        rationale = "Android 12+ requires a special permission to fire alarms at the exact meeting time.",
         action    = PermAction.EXACT_ALARM,
     ),
     PermItem(
         emoji     = "🔋",
-        title     = "Sin optimización de batería",
-        rationale = "Evita que Android duerma la app y pierda alertas con la pantalla apagada.",
+        title     = "Battery optimization",
+        rationale = "Prevents Android from sleeping the app and missing alerts when the screen is off.",
         action    = PermAction.BATTERY,
         required  = false,
     ),
     PermItem(
         emoji     = "📱",
-        title     = "Pantalla completa al alertar",
-        rationale = "Muestra la alerta sobre la pantalla de bloqueo (Android 14+).",
+        title     = "Full-screen alerts",
+        rationale = "Shows the alert over the lock screen so you never miss a meeting (Android 14+).",
         action    = PermAction.FULL_SCREEN,
         required  = false,
     ),
 )
 
-// ─── Mapeo PermItem → estado actual ───────────────────────────────────────────
+// ─── State → item mapping ─────────────────────────────────────────────────────
 
 private fun PermissionsState.isGranted(item: PermItem): Boolean = when (item.action) {
     PermAction.CALENDAR       -> calendar
@@ -107,19 +106,18 @@ fun OnboardingScreen(
     val state     by vm.state.collectAsState()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
-    // Refresca el estado al volver de Settings (usuario concedió permiso especial)
+    // Refresh state when returning from Settings
     LaunchedEffect(lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             vm.refresh(context)
         }
     }
 
-    // Avance automático cuando los permisos requeridos están OK
+    // Auto-advance when required permissions are granted
     LaunchedEffect(state.requiredGranted) {
         if (state.requiredGranted) onAllRequiredGranted()
     }
 
-    // Launcher para runtime permissions (CALENDAR + POST_NOTIFICATIONS)
     val runtimeLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { vm.refresh(context) }
@@ -132,12 +130,12 @@ fun OnboardingScreen(
                 .systemBarsPadding(),
         ) {
             Column(
-                modifier              = Modifier
+                modifier            = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 24.dp, vertical = 32.dp),
-                horizontalAlignment   = Alignment.CenterHorizontally,
-                verticalArrangement   = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 OnboardingHeader()
 
@@ -165,9 +163,7 @@ fun OnboardingScreen(
                 Button(
                     onClick  = onAllRequiredGranted,
                     enabled  = state.requiredGranted,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape    = RoundedCornerShape(14.dp),
                     colors   = ButtonDefaults.buttonColors(
                         containerColor         = Yellow,
@@ -177,14 +173,14 @@ fun OnboardingScreen(
                     ),
                 ) {
                     Text(
-                        text       = if (state.requiredGranted) "¡Empezar!" else "Acepta los permisos requeridos",
+                        text       = if (state.requiredGranted) "Let's go!" else "Grant the required permissions",
                         fontWeight = FontWeight.ExtraBold,
                         fontSize   = 15.sp,
                     )
                 }
 
                 Text(
-                    text       = "Los datos del calendario nunca salen de tu dispositivo.\nConsulta nuestra Política de Privacidad en sierraespada.com/privacy",
+                    text       = "Calendar data never leaves your device.\nSee our Privacy Policy at sierraespada.com/privacy",
                     fontSize   = 11.sp,
                     color      = Color.White.copy(alpha = 0.35f),
                     textAlign  = TextAlign.Center,
@@ -212,7 +208,7 @@ private fun OnboardingHeader() {
             color      = Yellow,
         )
         Text(
-            text       = "Para alertarte antes de tus reuniones\nnecesitamos un par de permisos.",
+            text       = "To alert you before your meetings\nwe need a couple of permissions.",
             fontSize   = 15.sp,
             color      = Color.White.copy(alpha = 0.7f),
             textAlign  = TextAlign.Center,
@@ -242,7 +238,6 @@ private fun PermissionRow(
             verticalAlignment     = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            // Icono / check
             Box(
                 modifier         = Modifier
                     .size(44.dp)
@@ -260,7 +255,6 @@ private fun PermissionRow(
                 )
             }
 
-            // Texto
             Column(
                 modifier            = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -281,7 +275,7 @@ private fun PermissionRow(
                             color = Color.White.copy(alpha = 0.07f),
                         ) {
                             Text(
-                                text     = "opcional",
+                                text     = "optional",
                                 fontSize = 10.sp,
                                 color    = Color.White.copy(alpha = 0.45f),
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
@@ -297,21 +291,20 @@ private fun PermissionRow(
                 )
             }
 
-            // Botón "Permitir" sólo cuando aún no está concedido
             if (!granted) {
                 TextButton(
-                    onClick = onAllow,
-                    colors  = ButtonDefaults.textButtonColors(contentColor = Yellow),
+                    onClick        = onAllow,
+                    colors         = ButtonDefaults.textButtonColors(contentColor = Yellow),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                 ) {
-                    Text("Permitir", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Allow", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         }
     }
 }
 
-// ─── Solicitar permiso / abrir Settings ───────────────────────────────────────
+// ─── Permission request dispatcher ───────────────────────────────────────────
 
 private fun requestPermission(
     context: android.content.Context,
@@ -349,8 +342,7 @@ private fun requestPermission(
 
         PermAction.FULL_SCREEN -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                // ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENTS = API 34; usamos el literal
-                // para evitar el error de compilación con minSdk < 34
+                // String literal to avoid compile error with minSdk < 34
                 @Suppress("InlinedApi")
                 val action = "android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENTS"
                 context.startActivity(

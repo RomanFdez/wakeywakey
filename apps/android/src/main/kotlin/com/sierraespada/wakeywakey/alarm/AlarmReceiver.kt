@@ -12,9 +12,20 @@ import com.sierraespada.wakeywakey.alert.AlertActivity
 import com.sierraespada.wakeywakey.scheduler.AndroidAlarmScheduler
 
 /**
- * Recibe la alarma de AlarmManager y lanza la alerta full-screen.
- * El sistema lo dispara incluso con la pantalla apagada gracias a
- * RTC_WAKEUP + setExactAndAllowWhileIdle.
+ * Receives the AlarmManager broadcast and launches the full-screen alert.
+ *
+ * Two-pronged approach for reliable full-screen display on all API levels:
+ *
+ * 1. Start AlertActivity directly — works when screen is ON (Android 10+
+ *    grants a brief activity-start window to alarm-triggered receivers).
+ * 2. Post a high-priority notification with setFullScreenIntent — fires
+ *    AlertActivity when screen is OFF / device is locked.
+ *
+ * Both paths are needed because:
+ * - When screen is ON  → Android demotes fullScreenIntent to a heads-up
+ *   notification unless we start the activity ourselves.
+ * - When screen is OFF → direct startActivity may be suppressed; the
+ *   notification's fullScreenIntent takes over.
  */
 class AlarmReceiver : BroadcastReceiver() {
 
@@ -33,6 +44,12 @@ class AlarmReceiver : BroadcastReceiver() {
             putExtra(AlertActivity.EXTRA_MEETING_URL, intent.getStringExtra(AndroidAlarmScheduler.EXTRA_MEETING_URL))
         }
 
+        // ── 1. Direct activity launch (screen ON path) ────────────────────────
+        // Alarm receivers triggered by setExactAndAllowWhileIdle are granted a
+        // short BAL (Background Activity Launch) exemption on API 29+.
+        context.startActivity(alertIntent)
+
+        // ── 2. Full-screen notification (screen OFF / lock screen path) ───────
         val fullScreenPi = PendingIntent.getActivity(
             context, eventId.toInt(), alertIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -40,13 +57,12 @@ class AlarmReceiver : BroadcastReceiver() {
 
         val nm = context.getSystemService(NotificationManager::class.java)
 
-        // Canal de alta prioridad — necesario en Android 8+
         nm.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID, "Meeting Alerts",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Full-screen alerts for upcoming meetings"
+                description         = "Full-screen alerts for upcoming meetings"
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
         )
@@ -60,7 +76,7 @@ class AlarmReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
-            .setFullScreenIntent(fullScreenPi, true)   // ← lanza AlertActivity
+            .setFullScreenIntent(fullScreenPi, true)
             .build()
 
         nm.notify(eventId.toInt(), notification)

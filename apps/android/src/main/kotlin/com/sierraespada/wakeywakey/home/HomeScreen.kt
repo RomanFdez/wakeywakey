@@ -2,7 +2,6 @@ package com.sierraespada.wakeywakey.home
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -27,11 +26,11 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 // ─── Brand colours ────────────────────────────────────────────────────────────
-private val Yellow  = Color(0xFFFFE03A)
-private val Navy    = Color(0xFF1A1A2E)
+private val Yellow      = Color(0xFFFFE03A)
+private val Navy        = Color(0xFF1A1A2E)
 private val NavySurface = Color(0xFF16213E)
-private val Coral   = Color(0xFFFF6B6B)
-private val Green   = Color(0xFF4CAF50)
+private val Coral       = Color(0xFFFF6B6B)
+private val Green       = Color(0xFF4CAF50)
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -46,15 +45,15 @@ fun HomeScreen(vm: HomeViewModel = viewModel()) {
             .systemBarsPadding(),
     ) {
         when {
-            state.isLoading -> LoadingState()
-            state.error != null -> ErrorState(state.error!!) { vm.refresh() }
+            state.isLoading      -> LoadingState()
+            state.error != null  -> ErrorState(state.error!!) { vm.refresh() }
             state.events.isEmpty() -> EmptyState()
-            else -> EventList(state = state)
+            else                 -> EventList(state = state)
         }
     }
 }
 
-// ─── Estados ──────────────────────────────────────────────────────────────────
+// ─── States ───────────────────────────────────────────────────────────────────
 
 @Composable
 private fun LoadingState() {
@@ -66,9 +65,9 @@ private fun LoadingState() {
 @Composable
 private fun ErrorState(message: String, onRetry: () -> Unit) {
     Column(
-        modifier              = Modifier.fillMaxSize().padding(32.dp),
-        horizontalAlignment   = Alignment.CenterHorizontally,
-        verticalArrangement   = Arrangement.Center,
+        modifier            = Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         Text("⚠️", fontSize = 48.sp)
         Spacer(Modifier.height(16.dp))
@@ -77,30 +76,30 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
         OutlinedButton(
             onClick = onRetry,
             colors  = ButtonDefaults.outlinedButtonColors(contentColor = Yellow),
-        ) { Text("Reintentar") }
+        ) { Text("Retry") }
     }
 }
 
 @Composable
 private fun EmptyState() {
     Column(
-        modifier              = Modifier.fillMaxSize().padding(32.dp),
-        horizontalAlignment   = Alignment.CenterHorizontally,
-        verticalArrangement   = Arrangement.Center,
+        modifier            = Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         Text("🎉", fontSize = 56.sp)
         Spacer(Modifier.height(16.dp))
         Text(
-            "Sin reuniones hoy",
+            "No meetings today",
             fontSize   = 22.sp,
             fontWeight = FontWeight.Bold,
             color      = Color.White,
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Disfruta del día.",
-            fontSize  = 15.sp,
-            color     = Color.White.copy(alpha = 0.5f),
+            "Enjoy the day.",
+            fontSize = 15.sp,
+            color    = Color.White.copy(alpha = 0.5f),
         )
     }
 }
@@ -111,13 +110,11 @@ private fun EventList(state: HomeUiState) {
         contentPadding      = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Cabecera
         item {
             HomeHeader()
             Spacer(Modifier.height(8.dp))
         }
 
-        // Tarjeta grande: próxima reunión
         state.nextEvent?.let { next ->
             item(key = "next_${next.id}") {
                 NextMeetingCard(event = next, nowMillis = state.nowMillis)
@@ -125,11 +122,10 @@ private fun EventList(state: HomeUiState) {
             }
         }
 
-        // Sección "Más tarde hoy"
         if (state.laterEvents.isNotEmpty()) {
             item {
                 Text(
-                    text       = "Más tarde hoy",
+                    text       = "Later today",
                     fontSize   = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color      = Color.White.copy(alpha = 0.4f),
@@ -143,7 +139,7 @@ private fun EventList(state: HomeUiState) {
     }
 }
 
-// ─── Cabecera ─────────────────────────────────────────────────────────────────
+// ─── Header ───────────────────────────────────────────────────────────────────
 
 @Composable
 private fun HomeHeader() {
@@ -160,29 +156,29 @@ private fun HomeHeader() {
                 color      = Yellow,
             )
             Text(
-                text    = todayLabel(),
+                text     = todayLabel(),
                 fontSize = 13.sp,
-                color   = Color.White.copy(alpha = 0.45f),
+                color    = Color.White.copy(alpha = 0.45f),
             )
         }
         Text("⏰", fontSize = 28.sp)
     }
 }
 
-// ─── Tarjeta próxima reunión ───────────────────────────────────────────────────
+// ─── Next meeting card ────────────────────────────────────────────────────────
 
 @Composable
 private fun NextMeetingCard(event: CalendarEvent, nowMillis: Long) {
-    val context         = LocalContext.current
-    val minutesLeft     = ((event.startTime - nowMillis) / 60_000L).toInt()
-    val isStartingSoon  = minutesLeft in 0..5
-    val isOngoing       = minutesLeft < 0
+    val context        = LocalContext.current
+    val minutesLeft    = ((event.startTime - nowMillis) / 60_000L).toInt()
+    val isStartingSoon = minutesLeft in 0..5
+    val isOngoing      = minutesLeft < 0
 
-    // Pulso si faltan ≤ 5 min
+    // Subtle scale pulse when ≤ 5 min remaining
     val scale by rememberInfiniteTransition(label = "pulse").animateFloat(
-        initialValue   = 1f,
-        targetValue    = if (isStartingSoon) 1.015f else 1f,
-        animationSpec  = infiniteRepeatable(
+        initialValue  = 1f,
+        targetValue   = if (isStartingSoon) 1.015f else 1f,
+        animationSpec = infiniteRepeatable(
             animation  = tween(700, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
         ),
@@ -203,31 +199,26 @@ private fun NextMeetingCard(event: CalendarEvent, nowMillis: Long) {
     Surface(
         shape    = RoundedCornerShape(20.dp),
         color    = cardColor,
-        modifier = Modifier
-            .fillMaxWidth()
-            .scale(scale),
+        modifier = Modifier.fillMaxWidth().scale(scale),
     ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            // Badge estado
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = accentColor.copy(alpha = 0.18f),
-            ) {
+            // Status badge
+            Surface(shape = RoundedCornerShape(6.dp), color = accentColor.copy(alpha = 0.18f)) {
                 Text(
-                    text     = when {
-                        isOngoing      -> "● En curso"
-                        isStartingSoon -> "● Empieza en ${minutesLeft} min"
-                        else           -> "Próxima reunión"
+                    text = when {
+                        isOngoing      -> "● Ongoing"
+                        isStartingSoon -> "● Starting in ${minutesLeft} min"
+                        else           -> "Next meeting"
                     },
-                    fontSize = 11.sp,
+                    fontSize   = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color    = accentColor,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    color      = accentColor,
+                    modifier   = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                 )
             }
 
-            // Título
+            // Title
             Text(
                 text       = event.title,
                 fontSize   = 20.sp,
@@ -237,7 +228,7 @@ private fun NextMeetingCard(event: CalendarEvent, nowMillis: Long) {
                 overflow   = TextOverflow.Ellipsis,
             )
 
-            // Hora + calendario
+            // Time chips + calendar name
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment     = Alignment.CenterVertically,
@@ -256,7 +247,7 @@ private fun NextMeetingCard(event: CalendarEvent, nowMillis: Long) {
                 )
             }
 
-            // Ubicación (si hay y no es un link)
+            // Location (only when there's no video link)
             if (!event.location.isNullOrBlank() && event.meetingLink == null) {
                 Text(
                     text     = "📍 ${event.location}",
@@ -267,20 +258,15 @@ private fun NextMeetingCard(event: CalendarEvent, nowMillis: Long) {
                 )
             }
 
-            // Countdown grande
-            AnimatedContent(
-                targetState = countdownLabel(event.startTime, nowMillis),
-                label       = "countdown",
-            ) { label ->
-                Text(
-                    text       = label,
-                    fontSize   = 36.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color      = accentColor,
-                )
-            }
+            // Countdown — plain Text, no animation to avoid flicker
+            Text(
+                text       = countdownLabel(event.startTime, nowMillis),
+                fontSize   = 36.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color      = accentColor,
+            )
 
-            // Botón Join
+            // Join button
             if (event.meetingLink != null) {
                 Button(
                     onClick  = {
@@ -289,23 +275,21 @@ private fun NextMeetingCard(event: CalendarEvent, nowMillis: Long) {
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         )
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape    = RoundedCornerShape(12.dp),
                     colors   = ButtonDefaults.buttonColors(
                         containerColor = accentColor,
                         contentColor   = Navy,
                     ),
                 ) {
-                    Text("Unirse ahora →", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                    Text("Join now →", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
                 }
             }
         }
     }
 }
 
-// ─── Fila evento secundario ───────────────────────────────────────────────────
+// ─── Later-today event row ────────────────────────────────────────────────────
 
 @Composable
 private fun EventRow(event: CalendarEvent) {
@@ -321,13 +305,11 @@ private fun EventRow(event: CalendarEvent) {
             verticalAlignment     = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Franja de hora
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(44.dp)) {
                 Text(formatTime(event.startTime), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Yellow)
                 Text(durationLabel(event.startTime, event.endTime), fontSize = 10.sp, color = Color.White.copy(alpha = 0.35f))
             }
 
-            // Separador vertical
             Box(
                 modifier = Modifier
                     .width(2.dp)
@@ -335,7 +317,6 @@ private fun EventRow(event: CalendarEvent) {
                     .background(Yellow.copy(alpha = 0.3f), RoundedCornerShape(1.dp))
             )
 
-            // Título + calendario
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
                     event.title,
@@ -354,7 +335,6 @@ private fun EventRow(event: CalendarEvent) {
                 )
             }
 
-            // Botón join compacto
             if (event.meetingLink != null) {
                 TextButton(
                     onClick = {
@@ -373,17 +353,17 @@ private fun EventRow(event: CalendarEvent) {
     }
 }
 
-// ─── Chips y helpers UI ───────────────────────────────────────────────────────
+// ─── Chip ─────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun TimeChip(label: String, color: Color) {
     Surface(shape = RoundedCornerShape(6.dp), color = color.copy(alpha = 0.12f)) {
         Text(
-            text     = label,
-            fontSize = 12.sp,
-            color    = color,
+            text       = label,
+            fontSize   = 12.sp,
+            color      = color,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+            modifier   = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
         )
     }
 }
@@ -391,7 +371,7 @@ private fun TimeChip(label: String, color: Color) {
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 private val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
-private val dayFmt  = SimpleDateFormat("EEEE, d 'de' MMMM", Locale("es"))
+private val dayFmt  = SimpleDateFormat("EEEE, MMMM d", Locale.ENGLISH)
 
 private fun formatTime(millis: Long): String = timeFmt.format(Date(millis))
 
@@ -406,18 +386,18 @@ private fun durationLabel(start: Long, end: Long): String {
 private fun countdownLabel(startTime: Long, nowMillis: Long): String {
     val diff = startTime - nowMillis
     return when {
-        diff < -60_000L  -> {
+        diff < -60_000L -> {
             val mins = ((-diff) / 60_000L).toInt()
-            "En curso · ${mins}m"
+            "Ongoing · ${mins}m"
         }
-        diff < 0 -> "Empezando ahora"
-        else -> {
+        diff < 0        -> "Starting now"
+        else            -> {
             val totalSecs = diff / 1_000L
             val h = totalSecs / 3600
             val m = (totalSecs % 3600) / 60
             val s = totalSecs % 60
-            if (h > 0) "%dh %02dm" .format(h, m)
-            else       "%02d:%02d" .format(m, s)
+            if (h > 0) "%dh %02dm".format(h, m)
+            else       "%02d:%02d".format(m, s)
         }
     }
 }

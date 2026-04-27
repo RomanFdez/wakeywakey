@@ -21,7 +21,7 @@ class AlertActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Muestra sobre la pantalla de bloqueo y enciende la pantalla
+        // Show over lock screen, turn on display, keep screen on while alert is visible
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -29,10 +29,12 @@ class AlertActivity : ComponentActivity() {
             @Suppress("DEPRECATION")
             window.addFlags(
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON  or
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
             )
         }
+        // FLAG_KEEP_SCREEN_ON must be set on all API levels to prevent the
+        // screen from dimming while the alert is displayed
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         // Intenta desbloquear el keyguard para mostrar la alerta sin swipe
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
