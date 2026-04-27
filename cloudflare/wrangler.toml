@@ -1,0 +1,11 @@
+name            = "sierraespada"
+compatibility_date = "2024-09-23"
+
+# Sirve los archivos estáticos de /docs como assets del Worker.
+# El Worker cubre rutas dinámicas futuras (API, redirects, etc.).
+[assets]
+directory = "../docs"
+
+# Rutas con dominio personalizado — configurar en el dashboard de Cloudflare
+# tras el primer deploy: Workers & Pages → sierraespada → Settings → Domains & Routes
+# Añadir: sierraespada.com/*
