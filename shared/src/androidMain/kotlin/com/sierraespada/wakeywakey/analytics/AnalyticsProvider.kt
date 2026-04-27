@@ -1,37 +1,45 @@
 package com.sierraespada.wakeywakey.analytics
 
-// TODO Fase 1: integrar PostHog Android SDK con Context.
-// PostHog Android v3 requiere Application context en setup() — refactorizar
-// cuando tengamos el Application class completamente inicializado.
+import com.posthog.PostHog
+
 actual object AnalyticsProvider {
 
-    // TaggedAnalytics añade app:"wakeywakey" a todos los eventos automáticamente.
-    // El proyecto PostHog es compartido entre apps de SierraEspada.
+    // TaggedAnalytics inyecta app:"wakeywakey" en todos los eventos automáticamente.
+    // PostHog.setup() ya fue llamado desde WakeyWakeyApp (necesita Context).
     private val analytics: Analytics = TaggedAnalytics(
-        delegate       = StubAnalytics,
+        delegate       = PostHogAnalytics,
         baseProperties = mapOf("app" to "wakeywakey")
     )
 
     actual fun initialize(apiKey: String, host: String) {
-        println("[Analytics] Initialized (Android stub) — apiKey=${apiKey.take(8)}…")
-        // TODO: PostHog.setup(context, PostHogAndroidConfig(apiKey, host))
+        // No-op: PostHogAndroid.setup() se llama desde WakeyWakeyApp con Application context.
+        // Esta función existe para satisfacer el contrato expect/actual del módulo shared.
     }
 
     actual val instance: Analytics get() = analytics
 }
 
-private object StubAnalytics : Analytics {
+private object PostHogAnalytics : Analytics {
+
     override fun track(event: String, properties: Map<String, Any>) {
-        println("[Analytics] track: $event $properties")
+        PostHog.capture(
+            event      = event,
+            properties = properties.takeIf { it.isNotEmpty() }
+        )
     }
 
     override fun identify(userId: String, traits: Map<String, Any>) {
-        println("[Analytics] identify: $userId $traits")
+        PostHog.identify(
+            distinctId     = userId,
+            userProperties = traits.takeIf { it.isNotEmpty() }
+        )
     }
 
     override fun screen(screenName: String) {
-        println("[Analytics] screen: $screenName")
+        PostHog.screen(screenTitle = screenName)
     }
 
-    override fun flush() {}
+    override fun flush() {
+        PostHog.flush()
+    }
 }
