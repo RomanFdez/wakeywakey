@@ -10,16 +10,6 @@ import kotlinx.coroutines.withContext
 
 class AndroidCalendarRepository(private val context: Context) : CalendarRepository {
 
-    /**
-     * Query CalendarContract.Instances instead of Events.
-     *
-     * Instances is the correct API for "what meetings happen in this window":
-     * - Automatically expands recurring events into individual occurrences.
-     * - Always reflects the current state (reschedules, cancellations) without
-     *   needing a sync cycle — the ContentProvider updates it in real time.
-     * - Events.CONTENT_URI only has one row per event and misses rescheduled
-     *   recurring instances unless you query the Instances table.
-     */
     override suspend fun getUpcomingEvents(
         fromTime: Long,
         toTime: Long,
@@ -29,33 +19,34 @@ class AndroidCalendarRepository(private val context: Context) : CalendarReposito
         val calendarNames = getCalendarNames()
         val events        = mutableListOf<CalendarEvent>()
 
-        // Instances URI requires the time range baked into the URI path
-        val instancesUri: Uri = CalendarContract.Instances.CONTENT_URI.buildUpon()
-            .appendPath(fromTime.toString())
-            .appendPath(toTime.toString())
-            .build()
+        // Build the Instances URI with time range embedded in the path.
+        // ContentUris.appendId is the canonical way — avoids toString() edge cases.
+        val uri: Uri = android.content.ContentUris.appendId(
+            android.content.ContentUris.appendId(
+                CalendarContract.Instances.CONTENT_URI.buildUpon(),
+                fromTime,
+            ),
+            toTime,
+        ).build()
 
         val projection = arrayOf(
             CalendarContract.Instances.EVENT_ID,
             CalendarContract.Instances.TITLE,
-            CalendarContract.Instances.BEGIN,        // instance start (= DTSTART for non-recurring)
-            CalendarContract.Instances.END,          // instance end
+            CalendarContract.Instances.BEGIN,
+            CalendarContract.Instances.END,
             CalendarContract.Instances.EVENT_LOCATION,
             CalendarContract.Instances.DESCRIPTION,
             CalendarContract.Instances.CALENDAR_ID,
             CalendarContract.Instances.ALL_DAY,
         )
 
-        val selection = buildString {
-            append("${CalendarContract.Instances.BEGIN} >= ?")
-            append(" AND ${CalendarContract.Instances.BEGIN} <= ?")
-            if (!includeAllDay) append(" AND ${CalendarContract.Instances.ALL_DAY} = 0")
-        }
-        val args = arrayOf(fromTime.toString(), toTime.toString())
-        val sort = "${CalendarContract.Instances.BEGIN} ASC"
+        // Only filter ALL_DAY here — time range is already in the URI.
+        // Adding BEGIN >= / <= again causes problems on several OEMs.
+        val selection = if (includeAllDay) null
+                        else "${CalendarContract.Instances.ALL_DAY} = 0"
 
         context.contentResolver
-            .query(instancesUri, projection, selection, args, sort)
+            .query(uri, projection, selection, null, "${CalendarContract.Instances.BEGIN} ASC")
             ?.use { cursor ->
                 val colId       = cursor.getColumnIndexOrThrow(CalendarContract.Instances.EVENT_ID)
                 val colTitle    = cursor.getColumnIndexOrThrow(CalendarContract.Instances.TITLE)

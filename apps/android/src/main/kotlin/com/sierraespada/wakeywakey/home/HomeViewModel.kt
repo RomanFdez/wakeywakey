@@ -39,27 +39,22 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     /**
-     * ContentObserver that auto-reloads events whenever the Calendar Provider
-     * changes (new event, reschedule, deletion). This is more reliable than
-     * relying on manual pull-to-refresh alone.
+     * ContentObserver: fires immediately when a local calendar change happens
+     * (e.g. event created/edited on this device).
      */
     private val calendarObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean, uri: Uri?) {
-            loadEvents()
-        }
+        override fun onChange(selfChange: Boolean, uri: Uri?) = silentReload()
     }
 
     init {
         loadEvents()
         tickClock()
+        startPeriodicRefresh()
 
-        // Register observer on the Events URI (notifyForDescendants = true catches
-        // any sub-URI change including instances, attendees, etc.)
-        app.contentResolver.registerContentObserver(
-            CalendarContract.Events.CONTENT_URI,
-            /* notifyForDescendants = */ true,
-            calendarObserver,
-        )
+        // Watch both URIs — Events for local edits, Instances for sync'd changes
+        val cr = app.contentResolver
+        cr.registerContentObserver(CalendarContract.Events.CONTENT_URI,    true, calendarObserver)
+        cr.registerContentObserver(CalendarContract.Instances.CONTENT_URI, true, calendarObserver)
     }
 
     override fun onCleared() {
@@ -67,24 +62,54 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         super.onCleared()
     }
 
+    /** Called by pull-to-refresh — shows the spinner. */
     fun refresh() = loadEvents()
 
+    /** Visible load: sets isLoading = true so the PTR spinner shows. */
     private fun loadEvents() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-            try {
-                val now      = System.currentTimeMillis()
-                val endOfDay = endOfDay(now)
-                val events   = repo.getUpcomingEvents(fromTime = now - 5 * 60_000L, toTime = endOfDay)
-                _uiState.update { it.copy(isLoading = false, events = events) }
-            } catch (e: SecurityException) {
-                _uiState.update { it.copy(isLoading = false, error = "Calendar permission revoked.") }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, error = e.message) }
+            fetchAndUpdate()
+        }
+    }
+
+    /**
+     * Silent background reload — updates events without showing the spinner.
+     * Used by the ContentObserver and the periodic timer so the UI doesn't
+     * flash a loading state every 30 seconds.
+     */
+    private fun silentReload() {
+        viewModelScope.launch { fetchAndUpdate() }
+    }
+
+    private suspend fun fetchAndUpdate() {
+        try {
+            val now      = System.currentTimeMillis()
+            val endOfDay = endOfDay(now)
+            val events   = repo.getUpcomingEvents(fromTime = now - 5 * 60_000L, toTime = endOfDay)
+            _uiState.update { it.copy(isLoading = false, events = events) }
+        } catch (e: SecurityException) {
+            _uiState.update { it.copy(isLoading = false, error = "Calendar permission revoked.") }
+        } catch (e: Exception) {
+            _uiState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    /**
+     * Silent reload every 30 seconds.
+     * Catches cases where the ContentObserver misses a notification
+     * (e.g. Google Calendar sync happening in the background).
+     */
+    private fun startPeriodicRefresh() {
+        viewModelScope.launch {
+            while (isActive) {
+                delay(30_000L)
+                silentReload()
             }
         }
     }
 
+    /** Updates the clock every second for the live countdown. */
     private fun tickClock() {
         viewModelScope.launch {
             while (isActive) {
