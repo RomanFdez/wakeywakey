@@ -1,0 +1,52 @@
+[versions]
+kotlin               = "2.1.20"
+compose-multiplatform = "1.7.3"
+agp                  = "8.7.3"
+compose-bom          = "2025.04.00"
+coroutines           = "1.9.0"
+serialization        = "1.7.3"
+koin                 = "4.0.0"
+supabase             = "3.0.0"
+revenuecat           = "8.0.0"
+sentry               = "7.20.0"
+activity-compose     = "1.9.3"
+lifecycle            = "2.8.7"
+
+[libraries]
+# AndroidX
+compose-bom                  = { group = "androidx.compose", name = "compose-bom", version.ref = "compose-bom" }
+activity-compose             = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
+lifecycle-viewmodel-compose  = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+lifecycle-runtime-compose    = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+
+# Kotlin
+kotlinx-coroutines-core      = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core",    version.ref = "coroutines" }
+kotlinx-coroutines-android   = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-swing     = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing",   version.ref = "coroutines" }
+kotlinx-serialization-json   = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+
+# DI — Koin
+koin-core                    = { module = "io.insert-koin:koin-core",    version.ref = "koin" }
+koin-android                 = { module = "io.insert-koin:koin-android", version.ref = "koin" }
+koin-compose                 = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
+
+# Backend — Supabase
+supabase-postgrest           = { module = "io.github.jan-tennert.supabase:postgrest-kt", version.ref = "supabase" }
+supabase-auth                = { module = "io.github.jan-tennert.supabase:auth-kt",      version.ref = "supabase" }
+supabase-realtime            = { module = "io.github.jan-tennert.supabase:realtime-kt",  version.ref = "supabase" }
+
+# Monetización — RevenueCat
+revenuecat                   = { module = "com.revenuecat.purchases:purchases",    version.ref = "revenuecat" }
+revenuecat-ui                = { module = "com.revenuecat.purchases:purchases-ui", version.ref = "revenuecat" }
+
+# Crash reporting — Sentry
+sentry-android               = { module = "io.sentry:sentry-android", version.ref = "sentry" }
+
+[plugins]
+android-application    = { id = "com.android.application",                          version.ref = "agp" }
+android-library        = { id = "com.android.library",                              version.ref = "agp" }
+kotlin-android         = { id = "org.jetbrains.kotlin.android",                     version.ref = "kotlin" }
+kotlin-multiplatform   = { id = "org.jetbrains.kotlin.multiplatform",               version.ref = "kotlin" }
+kotlin-serialization   = { id = "org.jetbrains.kotlin.plugin.serialization",        version.ref = "kotlin" }
+compose-multiplatform  = { id = "org.jetbrains.compose",                            version.ref = "compose-multiplatform" }
+compose-compiler       = { id = "org.jetbrains.kotlin.plugin.compose",              version.ref = "kotlin" }

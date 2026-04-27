@@ -1,0 +1,36 @@
+# Gradle
+.gradle/
+build/
+**/build/
+local.properties
+*.iml
+
+# Android Studio / IntelliJ IDEA
+.idea/
+*.iws
+*.ipr
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Keystore — NUNCA al repo
+*.jks
+*.keystore
+keystore.properties
+
+# Secrets — NUNCA al repo
+secrets.properties
+google-services.json
+GoogleService-Info.plist
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Compose Desktop
+compose-desktop.pro
+
+# Kotlin/Native
+*.klib
+xcuserdata/
+*.xcworkspace/
