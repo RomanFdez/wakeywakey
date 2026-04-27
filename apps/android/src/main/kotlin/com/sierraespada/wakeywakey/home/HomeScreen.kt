@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +35,7 @@ private val Green       = Color(0xFF4CAF50)
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(vm: HomeViewModel = viewModel()) {
     val state by vm.uiState.collectAsState()
@@ -44,11 +46,16 @@ fun HomeScreen(vm: HomeViewModel = viewModel()) {
             .background(Navy)
             .systemBarsPadding(),
     ) {
-        when {
-            state.isLoading      -> LoadingState()
-            state.error != null  -> ErrorState(state.error!!) { vm.refresh() }
-            state.events.isEmpty() -> EmptyState()
-            else                 -> EventList(state = state)
+        PullToRefreshBox(
+            isRefreshing = state.isLoading,
+            onRefresh    = { vm.refresh() },
+            modifier     = Modifier.fillMaxSize(),
+        ) {
+            when {
+                state.error != null    -> ErrorState(state.error!!) { vm.refresh() }
+                state.events.isEmpty() && !state.isLoading -> EmptyState()
+                else                   -> EventList(state = state)
+            }
         }
     }
 }
