@@ -98,14 +98,15 @@
 5. ~~**Setup CI**~~ → ✅ GitHub Actions configurado (2026-04-27)
    - `ci.yml` — lint + tests + build Android + build Windows en cada push
    - `release.yml` — AAB firmado + MSI/EXE + GitHub Release en cada tag `v*.*.*`
-6. ~~**Analytics + Crash: Sentry + PostHog**~~ → ✅ Integrado (2026-04-27)
+6. ~~**Analytics + Crash: Sentry + PostHog**~~ → ✅ Integrado y verificado en dispositivo (2026-04-27)
    - Capa de abstracción KMP (`Analytics` + `CrashReporter`) en `shared/commonMain`
-   - Implementaciones `androidMain` (PostHog Android SDK + Sentry Android) y `desktopMain` (PostHog Java + Sentry JVM)
+   - Implementaciones `androidMain` (PostHog Android SDK + Sentry Android) y `desktopMain` (stub + Sentry JVM)
+   - `TaggedAnalytics` decorator inyecta `app:"wakeywakey"` en todos los eventos (proyecto PostHog compartido)
    - Secrets via `secrets.properties` (local) o env vars (CI) — nunca hardcodeados
    - Eventos estándar definidos en `Event.kt` (app_opened, alert_shown, paywall_shown…)
    - Sentry configurado vía wizard + Gradle plugin (ProGuard mapping upload automático en release)
    - DSN real conectado a [sierra-espada.sentry.io](https://sierra-espada.sentry.io/issues/?project=4511290677395536)
-   - PostHog cuenta creada y API key configurada en `secrets.properties` (EU region)
+   - PostHog ✅ verificado: eventos `app_opened`, `Application Opened`, `Application Installed`, `Screen` confirmados en dashboard EU (2026-04-27)
 7. Privacy Policy + Terms of Service (plantillas con abogado, multi-idioma).
 
 **Entregables:** repo creado, branding, legal básico, landing "coming soon" con waitlist.
