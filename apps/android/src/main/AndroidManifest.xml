@@ -66,7 +66,11 @@
         <!-- BroadcastReceiver para disparar la alarma -->
         <receiver
             android:name=".alarm.AlarmReceiver"
-            android:exported="false" />
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.sierraespada.wakeywakey.ALARM" />
+            </intent-filter>
+        </receiver>
 
         <!-- BroadcastReceiver para relanzar alarmas tras reinicio -->
         <receiver

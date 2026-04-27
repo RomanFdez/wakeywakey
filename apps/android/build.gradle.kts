@@ -79,6 +79,9 @@ dependencies {
     // Crash + Analytics
     implementation(libs.sentry.android)
     implementation(libs.posthog.android)
+
+    // Notificaciones + alarmas
+    implementation("androidx.core:core-ktx:1.13.1")
 }
 
 
