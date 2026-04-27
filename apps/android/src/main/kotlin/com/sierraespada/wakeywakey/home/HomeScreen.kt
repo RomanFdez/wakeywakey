@@ -40,22 +40,20 @@ private val Green       = Color(0xFF4CAF50)
 fun HomeScreen(vm: HomeViewModel = viewModel()) {
     val state by vm.uiState.collectAsState()
 
-    Box(
-        modifier = Modifier
+    // PullToRefreshBox must be the outermost container so the drag gesture
+    // is captured regardless of whether the inner LazyColumn is scrollable.
+    PullToRefreshBox(
+        isRefreshing = state.isLoading,
+        onRefresh    = { vm.refresh() },
+        modifier     = Modifier
             .fillMaxSize()
             .background(Navy)
             .systemBarsPadding(),
     ) {
-        PullToRefreshBox(
-            isRefreshing = state.isLoading,
-            onRefresh    = { vm.refresh() },
-            modifier     = Modifier.fillMaxSize(),
-        ) {
-            when {
-                state.error != null    -> ErrorState(state.error!!) { vm.refresh() }
-                state.events.isEmpty() && !state.isLoading -> EmptyState()
-                else                   -> EventList(state = state)
-            }
+        when {
+            state.error != null                        -> ErrorState(state.error!!) { vm.refresh() }
+            state.events.isEmpty() && !state.isLoading -> EmptyState()
+            else                                       -> EventList(state = state)
         }
     }
 }

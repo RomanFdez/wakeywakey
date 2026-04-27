@@ -1,6 +1,11 @@
 package com.sierraespada.wakeywakey.home
 
 import android.app.Application
+import android.database.ContentObserver
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.provider.CalendarContract
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.sierraespada.wakeywakey.calendar.AndroidCalendarRepository
@@ -19,11 +24,9 @@ data class HomeUiState(
     val nowMillis: Long             = System.currentTimeMillis(),
     val error: String?              = null,
 ) {
-    /** Próxima reunión que aún no ha empezado (o está en curso ≤ 5 min). */
     val nextEvent: CalendarEvent?
         get() = events.firstOrNull { it.startTime > nowMillis - 5 * 60_000L }
 
-    /** Resto de reuniones del día (sin la próxima). */
     val laterEvents: List<CalendarEvent>
         get() = if (nextEvent != null) events.drop(1) else events
 }
@@ -35,9 +38,33 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    /**
+     * ContentObserver that auto-reloads events whenever the Calendar Provider
+     * changes (new event, reschedule, deletion). This is more reliable than
+     * relying on manual pull-to-refresh alone.
+     */
+    private val calendarObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean, uri: Uri?) {
+            loadEvents()
+        }
+    }
+
     init {
         loadEvents()
         tickClock()
+
+        // Register observer on the Events URI (notifyForDescendants = true catches
+        // any sub-URI change including instances, attendees, etc.)
+        app.contentResolver.registerContentObserver(
+            CalendarContract.Events.CONTENT_URI,
+            /* notifyForDescendants = */ true,
+            calendarObserver,
+        )
+    }
+
+    override fun onCleared() {
+        getApplication<Application>().contentResolver.unregisterContentObserver(calendarObserver)
+        super.onCleared()
     }
 
     fun refresh() = loadEvents()
@@ -58,7 +85,6 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Actualiza nowMillis cada segundo para el countdown en vivo. */
     private fun tickClock() {
         viewModelScope.launch {
             while (isActive) {
