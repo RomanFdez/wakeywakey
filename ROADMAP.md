@@ -86,14 +86,18 @@
 1. ~~**Validación legal de marca**~~ → ✅ **Nombre decidido: WakeyWakey** (2026-04-25). Sin conflicto conocido.
 2. ~~Registro de dominio~~ → ✅ **No necesario.** App distribuida bajo SierraEspada (sierraespada.com).
    - Redes sociales: buscar @WakeyWakeyApp en X, Instagram, TikTok.
-3. **Branding básico:** ✅ Decisiones tomadas (2026-04-25):
+3. ~~**Branding básico**~~ → ✅ Decisiones tomadas (2026-04-25):
    - **Paleta:** Amarillo limón `#FFE03A` (primario) · Azul noche `#1A1A2E` (contraste) · Coral `#FF6B6B` (acento) · Gris cálido `#F5F5F0` (neutro)
    - **Tipografía:** Nunito ExtraBold (display/logo) + Inter (UI)
    - **Icono:** dos ojos abiertos de golpe — minimalista, sobre fondo amarillo
    - **Tone of voice:** informal, irreverente — *"Wakey wakey. Teams call in 60 seconds."*
-   - Pendiente: crear assets en Figma (logo, icono app, splash screen)
-4. Setup repositorio: monorepo con `/apps/android`, `/apps/windows`, `/apps/web`, `/shared` (KMP).
-5. Setup CI (GitHub Actions): lint + test + build.
+   - ⏳ Pendiente: crear assets en Figma (logo, icono app, splash screen)
+4. ~~**Setup repositorio**~~ → ✅ Monorepo KMP creado (2026-04-27) — [github.com/RomanFdez/wakeywakey](https://github.com/RomanFdez/wakeywakey)
+   - `/shared` (commonMain · androidMain · desktopMain · iosMain)
+   - `/apps/android` · `/apps/windows` · `/apps/ios` · `/apps/macos`
+5. ~~**Setup CI**~~ → ✅ GitHub Actions configurado (2026-04-27)
+   - `ci.yml` — lint + tests + build Android + build Windows en cada push
+   - `release.yml` — AAB firmado + MSI/EXE + GitHub Release en cada tag `v*.*.*`
 6. Analytics + Crash: Sentry + PostHog conectados.
 7. Privacy Policy + Terms of Service (plantillas con abogado, multi-idioma).
 
