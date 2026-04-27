@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Alarm bell silhouette — placeholder hasta que lleguen los assets de Figma -->
+    <path
+        android:fillColor="#1A1A2E"
+        android:pathData="M54,20 C44,20 36,28 36,38 L36,56 L28,64 L28,68 L80,68 L80,64 L72,56 L72,38 C72,28 64,20 54,20 Z" />
+    <path
+        android:fillColor="#1A1A2E"
+        android:pathData="M48,68 C48,71.3 50.7,74 54,74 C57.3,74 60,71.3 60,68 Z" />
+</vector>

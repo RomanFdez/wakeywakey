@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Variante dark — Compose gestiona los colores reales en runtime -->
+    <style name="Theme.WakeyWakey" parent="android:Theme.Material.NoTitleBar">
+        <item name="android:colorPrimary">#FFE03A</item>
+        <item name="android:colorAccent">#FFE03A</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

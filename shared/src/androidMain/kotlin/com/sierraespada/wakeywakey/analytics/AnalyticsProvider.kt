@@ -1,35 +1,32 @@
 package com.sierraespada.wakeywakey.analytics
 
-import com.posthog.android.PostHog
-import com.posthog.android.PostHogAndroidConfig
-
+// TODO Fase 1: integrar PostHog Android SDK con Context.
+// PostHog Android v3 requiere Application context en setup() — refactorizar
+// cuando tengamos el Application class completamente inicializado.
 actual object AnalyticsProvider {
 
-    private lateinit var analytics: Analytics
+    private val analytics: Analytics = StubAnalytics
 
     actual fun initialize(apiKey: String, host: String) {
-        val config = PostHogAndroidConfig(apiKey, host)
-        PostHog.setup(config)
-        analytics = PostHogAnalytics
+        println("[Analytics] Initialized (Android stub) — apiKey=${apiKey.take(8)}…")
+        // TODO: PostHog.setup(context, PostHogAndroidConfig(apiKey, host))
     }
 
     actual val instance: Analytics get() = analytics
 }
 
-private object PostHogAnalytics : Analytics {
+private object StubAnalytics : Analytics {
     override fun track(event: String, properties: Map<String, Any>) {
-        PostHog.capture(event, properties = properties)
+        println("[Analytics] track: $event $properties")
     }
 
     override fun identify(userId: String, traits: Map<String, Any>) {
-        PostHog.identify(userId, userProperties = traits)
+        println("[Analytics] identify: $userId")
     }
 
     override fun screen(screenName: String) {
-        PostHog.screen(screenName)
+        println("[Analytics] screen: $screenName")
     }
 
-    override fun flush() {
-        PostHog.flush()
-    }
+    override fun flush() {}
 }
