@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -9,8 +11,8 @@ plugins {
 // Lee secrets.properties (local, gitignoreado) o variables de entorno (CI)
 val secrets = rootProject.file("secrets.properties")
     .takeIf { it.exists() }
-    ?.let { java.util.Properties().apply { load(it.inputStream()) } }
-    ?: java.util.Properties()
+    ?.let { Properties().apply { load(it.inputStream()) } }
+    ?: Properties()
 
 fun secret(key: String) = secrets.getProperty(key) ?: System.getenv(key) ?: ""
 
