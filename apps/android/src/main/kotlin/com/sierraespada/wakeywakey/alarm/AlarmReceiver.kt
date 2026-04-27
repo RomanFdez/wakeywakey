@@ -7,26 +7,24 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.sierraespada.wakeywakey.alert.AlertActivity
 import com.sierraespada.wakeywakey.scheduler.AndroidAlarmScheduler
 
 /**
- * Receives the AlarmManager broadcast and launches the full-screen alert.
+ * Receives the AlarmManager broadcast and shows the full-screen alert.
  *
- * Strategy depends on whether the screen is currently on:
+ * Strategy: always post a MAX-priority notification with setFullScreenIntent.
+ * Android handles both cases:
+ *   • Screen OFF / locked → system fires the fullScreenIntent immediately,
+ *     AlertActivity launches over the lock screen.
+ *   • Screen ON           → system shows a brief heads-up AND fires the
+ *     fullScreenIntent. AlertActivity cancels the notification in onCreate()
+ *     so the heads-up banner disappears as soon as the activity is visible.
  *
- * • Screen ON  → start AlertActivity directly (BAL exemption granted to
- *                alarm receivers). Post a silent/low-priority notification
- *                just so the user can dismiss it from the shade — no heads-up.
- *
- * • Screen OFF → post a MAX-priority notification with setFullScreenIntent.
- *                Android uses the FSI to launch AlertActivity over the lock screen.
- *                Starting an activity directly is unreliable when screen is off.
- *
- * This avoids the double-flash (heads-up banner + full-screen activity) that
- * happens when both paths fire simultaneously.
+ * We no longer call startActivity() directly because Android 10+ Background
+ * Activity Launch (BAL) restrictions silently block it for most alarm types,
+ * resulting in only the heads-up showing instead of the full-screen activity.
  */
 class AlarmReceiver : BroadcastReceiver() {
 
@@ -47,65 +45,35 @@ class AlarmReceiver : BroadcastReceiver() {
             putExtra(AlertActivity.EXTRA_MEETING_URL, intent.getStringExtra(AndroidAlarmScheduler.EXTRA_MEETING_URL))
         }
 
-        val nm = context.getSystemService(NotificationManager::class.java)
-        val pm = context.getSystemService(PowerManager::class.java)
+        val fullScreenPi = PendingIntent.getActivity(
+            context, eventId.toInt(), alertIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
-        // Ensure the notification channel exists (idempotent)
+        val nm = context.getSystemService(NotificationManager::class.java)
+
         nm.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID, "Meeting Alerts",
-                NotificationManager.IMPORTANCE_HIGH
+                NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description          = "Full-screen alerts for upcoming meetings"
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setBypassDnd(true)
             }
         )
 
-        if (pm.isInteractive) {
-            // ── Screen is ON ─────────────────────────────────────────────────
-            // Start the activity directly — the system grants a short BAL window
-            // to alarm-triggered BroadcastReceivers (API 29+).
-            context.startActivity(alertIntent)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle("⏰ $title")
+            .setContentText("Your meeting is starting now")
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setAutoCancel(true)
+            .setFullScreenIntent(fullScreenPi, /* highPriority = */ true)
+            .build()
 
-            // Post a silent notification so the user sees it in the shade and
-            // can tap to reopen — but don't show a heads-up banner.
-            val silentNotification = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-                .setContentTitle("⏰ $title")
-                .setContentText("Meeting alert — tap to view")
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setCategory(NotificationCompat.CATEGORY_ALARM)
-                .setAutoCancel(true)
-                .setContentIntent(
-                    PendingIntent.getActivity(
-                        context, eventId.toInt(), alertIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                )
-                .build()
-
-            nm.notify(eventId.toInt(), silentNotification)
-
-        } else {
-            // ── Screen is OFF / locked ────────────────────────────────────────
-            // Use full-screen intent — Android fires it over the lock screen.
-            val fullScreenPi = PendingIntent.getActivity(
-                context, eventId.toInt(), alertIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-                .setContentTitle("⏰ $title")
-                .setContentText("Your meeting is starting now")
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_ALARM)
-                .setAutoCancel(true)
-                .setFullScreenIntent(fullScreenPi, true)
-                .build()
-
-            nm.notify(eventId.toInt(), notification)
-        }
+        nm.notify(eventId.toInt(), notification)
     }
 
     companion object {

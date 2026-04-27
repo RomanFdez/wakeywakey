@@ -50,6 +50,12 @@ class AlertActivity : ComponentActivity() {
         val location   = intent.getStringExtra(EXTRA_LOCATION)
         val meetingUrl = intent.getStringExtra(EXTRA_MEETING_URL)
 
+        // Cancel the notification immediately so the heads-up banner disappears
+        // as soon as this full-screen activity becomes visible.
+        if (eventId != -1L) {
+            getSystemService(NotificationManager::class.java)?.cancel(eventId.toInt())
+        }
+
         AnalyticsProvider.instance.track(
             Event.ALERT_SHOWN,
             mapOf("event_id" to eventId, "has_link" to (meetingUrl != null)),
