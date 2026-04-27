@@ -98,7 +98,12 @@
 5. ~~**Setup CI**~~ → ✅ GitHub Actions configurado (2026-04-27)
    - `ci.yml` — lint + tests + build Android + build Windows en cada push
    - `release.yml` — AAB firmado + MSI/EXE + GitHub Release en cada tag `v*.*.*`
-6. Analytics + Crash: Sentry + PostHog conectados.
+6. ~~**Analytics + Crash: Sentry + PostHog**~~ → ✅ Integrado (2026-04-27)
+   - Capa de abstracción KMP (`Analytics` + `CrashReporter`) en `shared/commonMain`
+   - Implementaciones `androidMain` (PostHog Android SDK + Sentry Android) y `desktopMain` (PostHog Java + Sentry JVM)
+   - Secrets via `secrets.properties` (local) o env vars (CI) — nunca hardcodeados
+   - Eventos estándar definidos en `Event.kt` (app_opened, alert_shown, paywall_shown…)
+   - ⏳ Pendiente: crear cuentas en [sentry.io](https://sentry.io) y [posthog.com](https://posthog.com) y rellenar `secrets.properties`
 7. Privacy Policy + Terms of Service (plantillas con abogado, multi-idioma).
 
 **Entregables:** repo creado, branding, legal básico, landing "coming soon" con waitlist.

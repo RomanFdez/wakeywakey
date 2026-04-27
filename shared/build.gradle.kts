@@ -50,6 +50,8 @@ kotlin {
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation(libs.kotlinx.coroutines.swing)
+                implementation(libs.sentry.jvm)
+                implementation(libs.posthog.java)
             }
         }
     }

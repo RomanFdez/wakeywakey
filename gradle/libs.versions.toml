@@ -9,6 +9,8 @@ koin                 = "4.0.0"
 supabase             = "3.0.0"
 revenuecat           = "8.0.0"
 sentry               = "7.20.0"
+posthog-android      = "3.4.0"
+posthog-java         = "1.2.0"
 activity-compose     = "1.9.3"
 lifecycle            = "2.8.7"
 
@@ -41,6 +43,11 @@ revenuecat-ui                = { module = "com.revenuecat.purchases:purchases-ui
 
 # Crash reporting — Sentry
 sentry-android               = { module = "io.sentry:sentry-android", version.ref = "sentry" }
+sentry-jvm                   = { module = "io.sentry:sentry",         version.ref = "sentry" }
+
+# Analytics — PostHog
+posthog-android              = { module = "com.posthog:posthog-android", version.ref = "posthog-android" }
+posthog-java                 = { module = "com.posthog:posthog-java",    version.ref = "posthog-java" }
 
 [plugins]
 android-application    = { id = "com.android.application",                          version.ref = "agp" }
