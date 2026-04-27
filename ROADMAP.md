@@ -121,47 +121,57 @@
 **Objetivo:** app funcional en móvil que resuelve el 100% del caso de uso core.
 
 **Prioridad MUST (MVP):**
-1. **Permisos y onboarding:**
-   - `READ_CALENDAR` (Calendar Provider API)
-   - `POST_NOTIFICATIONS` (Android 13+)
-   - `USE_FULL_SCREEN_INTENT` (Android 14+ requiere declaración especial)
-   - `SCHEDULE_EXACT_ALARM` / `USE_EXACT_ALARM`
-   - `SYSTEM_ALERT_WINDOW` (opcional, para overlay sobre otras apps)
-   - Ignorar optimización de batería (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`)
-   - Onboarding paso a paso guiando cada permiso con su porqué.
+1. ~~**Permisos y onboarding:**~~ → ✅ **Slice 2 completo (2026-04-27)**
+   - ~~`READ_CALENDAR` (Calendar Provider API)~~
+   - ~~`POST_NOTIFICATIONS` (Android 13+)~~
+   - ~~`USE_FULL_SCREEN_INTENT` (Android 14+ requiere declaración especial)~~
+   - ~~`SCHEDULE_EXACT_ALARM` / `USE_EXACT_ALARM`~~
+   - ~~Ignorar optimización de batería (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`)~~
+   - ~~Onboarding paso a paso guiando cada permiso con su porqué.~~
+   - `SYSTEM_ALERT_WINDOW` (opcional, overlay sobre otras apps — diferido)
 
-2. **Detección de eventos:**
-   - Lectura de Calendar Provider (Google, Outlook, Exchange, cualquier calendario sync'd en el device).
-   - Selector de qué calendarios escuchar.
-   - Worker periódico (WorkManager) + ContentObserver para cambios.
+2. ~~**Detección de eventos:**~~ → ✅ **Slice 1 completo (2026-04-27)**
+   - ~~Lectura de Calendar Provider (Google, Outlook, Exchange, cualquier calendario sync'd en el device).~~
+   - ~~`MeetingLinkDetector`: regex para 30+ servicios de videollamada.~~
+   - Selector de qué calendarios escuchar → pendiente (Slice Settings)
+   - ⏳ Worker periódico (WorkManager) + ContentObserver — **Slice 4**
 
-3. **Programación de alerta:**
-   - `AlarmManager.setExactAndAllowWhileIdle` N minutos antes (default 1 min).
-   - Reprogramación al boot (`BOOT_COMPLETED`).
-   - Cancelación si el evento se elimina/mueve.
+3. ~~**Programación de alerta:**~~ → ✅ **Slice 1 completo (2026-04-27)**
+   - ~~`AlarmManager.setExactAndAllowWhileIdle` N minutos antes (default 1 min).~~
+   - ~~Reprogramación al boot (`BOOT_COMPLETED`).~~
+   - Cancelación si el evento se elimina/mueve → pendiente
 
-4. **Alerta full-screen:**
-   - Activity con `FLAG_SHOW_WHEN_LOCKED` + `FLAG_TURN_SCREEN_ON` + `FLAG_KEEP_SCREEN_ON`.
-   - Lanzada vía Full-Screen Intent desde NotificationChannel de alta prioridad.
-   - Muestra: título, hora, countdown, sala virtual (link), botones **Unirse / Snooze / Ok**.
-   - Sonido + vibración + pantalla se enciende.
-   - Modo "overlay" cuando hay permiso SYSTEM_ALERT_WINDOW (cubre otras apps sin necesidad de activity).
+4. ~~**Alerta full-screen:**~~ → ✅ **Slice 1 completo (2026-04-27)**
+   - ~~Activity con `FLAG_SHOW_WHEN_LOCKED` + `FLAG_TURN_SCREEN_ON` + `FLAG_KEEP_SCREEN_ON`.~~
+   - ~~Lanzada vía Full-Screen Intent desde NotificationChannel de alta prioridad.~~
+   - ~~Muestra: título, hora, countdown, sala virtual (link), botones **Unirse / Snooze / Ok**.~~
+   - Sonido + vibración → pendiente (Slice Settings)
 
-5. **Detección de videollamada:**
-   - Regex sobre `description` + `location` del evento.
-   - Lista de 30+ servicios: Meet, Zoom, Teams, Webex, Whereby, Jitsi, GoToMeeting, BlueJeans, Around, Gather, Discord, Slack huddle, etc.
-   - Botón "Join" que hace `Intent.ACTION_VIEW` al link.
+5. ~~**Detección de videollamada:**~~ → ✅ **Slice 1 completo (2026-04-27)**
+   - ~~Regex sobre `description` + `location` del evento.~~
+   - ~~Lista de 30+ servicios: Meet, Zoom, Teams, Webex, Whereby, Jitsi, GoToMeeting, BlueJeans, Around, Gather, Discord, Slack huddle, etc.~~
+   - ~~Botón "Join" en HomeScreen + AlertActivity.~~
 
-6. **Settings básicos:**
+6. ~~**HomeScreen:**~~ → ✅ **Slice 3 completo (2026-04-27)**
+   - ~~Tarjeta próxima reunión con countdown en vivo (HH:MM:SS).~~
+   - ~~Lista de reuniones restantes del día.~~
+   - ~~Botón "Unirse ahora" si hay meetingLink.~~
+   - ~~Animación de pulso cuando faltan ≤ 5 min.~~
+
+7. **Settings básicos:** → ⏳ pendiente (Slice 4)
    - Tiempo antes del evento (30s, 1min, 2, 5, 10).
    - Sonido (selector de ringtones del sistema + 5 incluidos).
    - Vibración on/off.
    - Lista de calendarios activados.
+   - Persistencia con DataStore.
 
-7. **i18n:** EN + ES desde v1, PT-BR/DE/FR después.
+8. **WorkManager periódico:** → ⏳ pendiente (Slice 4)
+   - CalendarSyncWorker cada 15 min cuando la app está en background.
+
+9. **i18n:** EN + ES desde v1, PT-BR/DE/FR después → ⏳ pendiente
 
 **NICE-TO-HAVE (en MVP si da tiempo):**
-- Snooze 1/5 min.
+- Snooze 1/5 min. *(parcial: botón en AlertActivity, sin lógica real aún)*
 - Home widget mínimo con próxima reunión.
 - Quick Settings tile "Pausar alertas 1h".
 
