@@ -9,14 +9,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.sierraespada.wakeywakey.onboarding.OnboardingScreen
+import com.sierraespada.wakeywakey.onboarding.PermissionsViewModel
 import com.sierraespada.wakeywakey.scheduler.SchedulerService
 import com.sierraespada.wakeywakey.ui.theme.WakeyWakeyTheme
 
@@ -26,21 +30,44 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Arranca el SchedulerService para programar alarmas al abrir la app
-        startService(Intent(this, SchedulerService::class.java))
-
         setContent {
-            WakeyWakeyTheme {
-                MainScreen()
-            }
+            AppRoot()
         }
     }
 }
 
-/**
- * Pantalla principal temporal — placeholder hasta el Slice 3 (HomeScreen completa).
- * Confirma que la app arranca, el tema carga y el scheduler se inicia.
- */
+@Composable
+private fun AppRoot() {
+    val context = LocalContext.current
+    val vm: PermissionsViewModel = viewModel()
+
+    // Estado inicial: comprobamos en el primer render
+    LaunchedEffect(Unit) { vm.refresh(context) }
+
+    val state by vm.state.collectAsState()
+
+    // Decidir qué mostrar en función de si los permisos requeridos están OK
+    if (state.requiredGranted) {
+        // Arrancamos el servicio en cuanto sabemos que hay permisos
+        LaunchedEffect(Unit) {
+            context.startService(Intent(context, SchedulerService::class.java))
+        }
+        WakeyWakeyTheme {
+            MainScreen()
+        }
+    } else {
+        OnboardingScreen(
+            vm                   = vm,
+            onAllRequiredGranted = {
+                context.startService(Intent(context, SchedulerService::class.java))
+                vm.refresh(context)     // fuerza re-render con requiredGranted = true
+            },
+        )
+    }
+}
+
+// ─── Placeholder hasta que el Slice 3 implemente la HomeScreen completa ───────
+
 @Composable
 fun MainScreen() {
     Box(
@@ -53,42 +80,41 @@ fun MainScreen() {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.padding(32.dp),
+            modifier            = Modifier.padding(32.dp),
         ) {
             Text("⏰", fontSize = 64.sp)
 
             Text(
-                text = "WakeyWakey",
-                fontSize = 32.sp,
+                text       = "WakeyWakey",
+                fontSize   = 32.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFFFFE03A),
+                color      = Color(0xFFFFE03A),
             )
 
             Text(
-                text = "Never miss a meeting.\nSeriously.",
-                fontSize = 16.sp,
-                color = Color.White.copy(alpha = 0.6f),
-                textAlign = TextAlign.Center,
+                text       = "Never miss a meeting.\nSeriously.",
+                fontSize   = 16.sp,
+                color      = Color.White.copy(alpha = 0.6f),
+                textAlign  = TextAlign.Center,
                 lineHeight = 24.sp,
             )
 
             Spacer(Modifier.height(16.dp))
 
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color.White.copy(alpha = 0.08f),
+                shape    = RoundedCornerShape(12.dp),
+                color    = Color.White.copy(alpha = 0.08f),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text = "Meeting alerts active ✓",
-                    modifier = Modifier.padding(16.dp),
-                    color = Color(0xFFFFE03A),
+                    text       = "Meeting alerts active ✓",
+                    modifier   = Modifier.padding(16.dp),
+                    color      = Color(0xFFFFE03A),
                     fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
+                    textAlign  = TextAlign.Center,
                 )
             }
 
-            // TODO Slice 2: botón "Grant permissions" si faltan permisos
             // TODO Slice 3: lista de próximas reuniones del día
         }
     }
