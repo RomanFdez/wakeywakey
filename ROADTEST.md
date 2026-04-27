@@ -14,7 +14,7 @@
 - [ ] En build release: verificar que el mapping de ProGuard se sube automáticamente y el stack trace sigue siendo legible
 
 ### PostHog (analytics)
-- [ ] Rellenar `secrets.properties` con la API key real de PostHog
+- [x] Rellenar `secrets.properties` con la API key real de PostHog
 - [ ] Lanzar la app y verificar que aparece un evento en el dashboard de PostHog
 - [ ] Verificar que el evento `app_opened` llega correctamente
 

@@ -105,7 +105,7 @@
    - Eventos estándar definidos en `Event.kt` (app_opened, alert_shown, paywall_shown…)
    - Sentry configurado vía wizard + Gradle plugin (ProGuard mapping upload automático en release)
    - DSN real conectado a [sierra-espada.sentry.io](https://sierra-espada.sentry.io/issues/?project=4511290677395536)
-   - ⏳ Pendiente: crear cuenta en [posthog.com](https://posthog.com) y rellenar `POSTHOG_API_KEY` en `secrets.properties`
+   - PostHog cuenta creada y API key configurada en `secrets.properties` (EU region)
 7. Privacy Policy + Terms of Service (plantillas con abogado, multi-idioma).
 
 **Entregables:** repo creado, branding, legal básico, landing "coming soon" con waitlist.
