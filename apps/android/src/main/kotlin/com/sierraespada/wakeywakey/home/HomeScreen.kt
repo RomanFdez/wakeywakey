@@ -139,7 +139,7 @@ private fun EventList(state: HomeUiState) {
                 )
             }
             items(state.laterEvents, key = { it.id }) { event ->
-                EventRow(event = event)
+                EventRow(event = event, nowMillis = state.nowMillis)
             }
         }
     }
@@ -298,12 +298,14 @@ private fun NextMeetingCard(event: CalendarEvent, nowMillis: Long) {
 // ─── Later-today event row ────────────────────────────────────────────────────
 
 @Composable
-private fun EventRow(event: CalendarEvent) {
-    val context = LocalContext.current
+private fun EventRow(event: CalendarEvent, nowMillis: Long = System.currentTimeMillis()) {
+    val context   = LocalContext.current
+    val isOngoing = event.startTime <= nowMillis && event.endTime > nowMillis
+    val rowColor  = if (isOngoing) Green.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.05f)
 
     Surface(
         shape    = RoundedCornerShape(14.dp),
-        color    = Color.White.copy(alpha = 0.05f),
+        color    = rowColor,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -312,7 +314,11 @@ private fun EventRow(event: CalendarEvent) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(44.dp)) {
-                Text(formatTime(event.startTime), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Yellow)
+                if (isOngoing) {
+                    Text("● Now", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Green)
+                } else {
+                    Text(formatTime(event.startTime), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Yellow)
+                }
                 Text(durationLabel(event.startTime, event.endTime), fontSize = 10.sp, color = Color.White.copy(alpha = 0.35f))
             }
 

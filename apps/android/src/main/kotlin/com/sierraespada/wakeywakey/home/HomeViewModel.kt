@@ -24,9 +24,16 @@ data class HomeUiState(
     val nowMillis: Long             = System.currentTimeMillis(),
     val error: String?              = null,
 ) {
+    /** The most imminent event: ongoing or about to start. */
     val nextEvent: CalendarEvent?
-        get() = events.firstOrNull { it.startTime > nowMillis - 5 * 60_000L }
+        get() = events.firstOrNull { it.endTime > nowMillis }
 
+    /**
+     * All remaining events after the next one.
+     * Events that overlap with nextEvent (i.e. also ongoing) keep their
+     * "Ongoing" badge in the row because isOngoing is computed per-event
+     * in the UI from startTime/endTime vs nowMillis — not from position.
+     */
     val laterEvents: List<CalendarEvent>
         get() = if (nextEvent != null) events.drop(1) else events
 }
