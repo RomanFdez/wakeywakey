@@ -107,7 +107,11 @@
    - Sentry configurado vía wizard + Gradle plugin (ProGuard mapping upload automático en release)
    - DSN real conectado a [sierra-espada.sentry.io](https://sierra-espada.sentry.io/issues/?project=4511290677395536)
    - PostHog ✅ verificado: eventos `app_opened`, `Application Opened`, `Application Installed`, `Screen` confirmados en dashboard EU (2026-04-27)
-7. Privacy Policy + Terms of Service (plantillas con abogado, multi-idioma).
+7. ~~**Privacy Policy + Terms of Service**~~ → ✅ Documentos creados (2026-04-27)
+   - `docs/legal/privacy-policy.html` — cubre GDPR/CCPA, datos de calendario (local), PostHog, Sentry, RevenueCat
+   - `docs/legal/terms-of-service.html` — suscripciones, disclaimer, ley española, ODR europeo
+   - `cloudflare/` — Worker listo para deploy en sierraespada.com (diferido a Fase 6)
+   - ⚠️ **Pendiente antes de Fase 3 (launch Play Store):** ejecutar `wrangler deploy` + añadir dominio en Cloudflare dashboard → URLs: `sierraespada.com/privacy` y `sierraespada.com/terms`
 
 **Entregables:** repo creado, branding, legal básico, landing "coming soon" con waitlist.
 
@@ -238,13 +242,14 @@
 - `/waitlist` — captura email pre-lanzamiento (integrar Resend / Loops)
 
 #### Tareas
-1. Setup repo `/web` en el monorepo o repo separado bajo SierraEspada GitHub
-2. Diseño en Figma: homepage + página WakeyWakey
-3. Componentes Astro + Tailwind con sistema de diseño WakeyWakey (colores, fuentes)
-4. Integración Resend para waitlist
-5. SEO técnico: sitemap, og:image, schema.org (SoftwareApplication)
-6. Analytics: PostHog o Plausible
-7. Deploy Vercel con dominio sierraespada.com
+1. **Deploy Cloudflare Worker** (`cd cloudflare && npm install && wrangler deploy`) — activa sierraespada.com con las páginas legales ya creadas en `docs/legal/`
+2. Setup repo `/web` en el monorepo o repo separado bajo SierraEspada GitHub
+3. Diseño en Figma: homepage + página WakeyWakey
+4. Componentes Astro + Tailwind con sistema de diseño WakeyWakey (colores, fuentes)
+5. Integración Resend para waitlist
+6. SEO técnico: sitemap, og:image, schema.org (SoftwareApplication)
+7. Analytics: PostHog
+8. Migrar Worker a Astro en producción; mantener `/legal/*` y redirects
 
 #### 6.2 App web (después de Fase 5 — Windows)
 Opcional: versión web (PWA). Limitaciones (no puede mostrar fullscreen si pestaña inactiva) pero útil como companion para equipos.
