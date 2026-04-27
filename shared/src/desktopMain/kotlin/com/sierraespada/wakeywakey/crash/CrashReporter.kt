@@ -7,15 +7,16 @@ actual object CrashReporter {
     actual fun initialize(dsn: String, environment: String) {
         if (dsn.isBlank()) return
         Sentry.init { options ->
-            options.dsn         = dsn
-            options.environment = environment
+            options.dsn              = dsn
+            options.environment      = environment
             options.tracesSampleRate = if (environment == "production") 0.2 else 1.0
         }
     }
 
     actual fun captureException(throwable: Throwable, context: Map<String, Any>) {
-        Sentry.captureException(throwable) { scope ->
+        Sentry.withScope { scope ->
             context.forEach { (key, value) -> scope.setExtra(key, value.toString()) }
+            Sentry.captureException(throwable)
         }
     }
 

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Tema base para app 100% Compose — los colores reales los maneja Compose Material3.
-         Usamos android:Theme.Material.Light.NoTitleBar (framework, sin deps externas) -->
-    <style name="Theme.WakeyWakey" parent="android:Theme.Material.Light.NoTitleBar">
+    <!-- Tema base para app 100% Compose — Compose Material3 gestiona los colores reales.
+         Theme.Material.Light.NoActionBar es framework Android (API 21+), sin deps externas. -->
+    <style name="Theme.WakeyWakey" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:colorPrimary">#FFE03A</item>
         <item name="android:colorAccent">#FFE03A</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
