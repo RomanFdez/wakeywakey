@@ -2,18 +2,14 @@ package com.sierraespada.wakeywakey
 
 import android.app.Application
 import com.sierraespada.wakeywakey.analytics.AnalyticsProvider
-import com.sierraespada.wakeywakey.crash.CrashReporter
 
 class WakeyWakeyApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
 
-        // Crash reporting — Sentry
-        CrashReporter.initialize(
-            dsn         = BuildConfig.SENTRY_DSN,
-            environment = if (BuildConfig.DEBUG) "debug" else "production"
-        )
+        // Sentry se auto-inicializa desde AndroidManifest.xml (configurado por el wizard).
+        // No hace falta llamar a CrashReporter.initialize() en Android.
 
         // Analytics — PostHog
         AnalyticsProvider.initialize(

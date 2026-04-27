@@ -34,3 +34,6 @@ compose-desktop.pro
 *.klib
 xcuserdata/
 *.xcworkspace/
+
+# Sentry Config File
+sentry.properties

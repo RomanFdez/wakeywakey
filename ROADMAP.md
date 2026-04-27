@@ -103,7 +103,9 @@
    - Implementaciones `androidMain` (PostHog Android SDK + Sentry Android) y `desktopMain` (PostHog Java + Sentry JVM)
    - Secrets via `secrets.properties` (local) o env vars (CI) — nunca hardcodeados
    - Eventos estándar definidos en `Event.kt` (app_opened, alert_shown, paywall_shown…)
-   - ⏳ Pendiente: crear cuentas en [sentry.io](https://sentry.io) y [posthog.com](https://posthog.com) y rellenar `secrets.properties`
+   - Sentry configurado vía wizard + Gradle plugin (ProGuard mapping upload automático en release)
+   - DSN real conectado a [sierra-espada.sentry.io](https://sierra-espada.sentry.io/issues/?project=4511290677395536)
+   - ⏳ Pendiente: crear cuenta en [posthog.com](https://posthog.com) y rellenar `POSTHOG_API_KEY` en `secrets.properties`
 7. Privacy Policy + Terms of Service (plantillas con abogado, multi-idioma).
 
 **Entregables:** repo creado, branding, legal básico, landing "coming soon" con waitlist.

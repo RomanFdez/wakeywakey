@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
+
+    id("io.sentry.android.gradle") version "6.5.0"
 }
 
 // Lee secrets.properties (local, gitignoreado) o variables de entorno (CI)
@@ -75,4 +77,14 @@ dependencies {
     // Crash + Analytics
     implementation(libs.sentry.android)
     implementation(libs.posthog.android)
+}
+
+
+sentry {
+    org.set("sierra-espada")
+    projectName.set("wakeywakeyandroid")
+
+    // this will upload your source code to Sentry to show it as part of the stack traces
+    // disable if you don't want to expose your sources
+    includeSourceContext.set(true)
 }
