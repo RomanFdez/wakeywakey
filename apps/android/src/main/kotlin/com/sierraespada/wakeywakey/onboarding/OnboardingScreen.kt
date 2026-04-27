@@ -349,8 +349,12 @@ private fun requestPermission(
 
         PermAction.FULL_SCREEN -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                // ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENTS = API 34; usamos el literal
+                // para evitar el error de compilación con minSdk < 34
+                @Suppress("InlinedApi")
+                val action = "android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENTS"
                 context.startActivity(
-                    Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENTS).apply {
+                    Intent(action).apply {
                         data  = Uri.parse("package:${context.packageName}")
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
