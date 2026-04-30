@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -133,7 +135,19 @@ fun AlertScreen(
                     colors   = ButtonDefaults.buttonColors(containerColor = Yellow),
                     shape    = RoundedCornerShape(18.dp),
                 ) {
-                    Text(stringResource(R.string.alert_join_now), color = Navy, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                    Icon(
+                        imageVector        = Icons.Filled.Videocam,
+                        contentDescription = null,
+                        tint               = Navy,
+                        modifier           = Modifier.size(24.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        stringResource(R.string.alert_join_now),
+                        color      = Navy,
+                        fontSize   = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
                 }
             }
 
