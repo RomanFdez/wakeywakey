@@ -286,8 +286,16 @@
 ---
 
 ### 📱 Fase 4 — Optimización Tablet (1-2 semanas)
-1. Layouts responsive en Compose (window size classes).
-2. Aprovechamiento de espacio en `expanded`: panel lateral con agenda + detalle.
+> ✅ **Fase 4 completada — 2026-04-30**
+
+1. ~~**Layouts responsive en Compose (window size classes).**~~ → ✅
+   - `HomeScreen(isTablet)`: layout `Row` 40/60 — lista izquierda + panel detalle derecho permanente
+   - `SettingsScreen(isTablet)`: contenido centrado con `widthIn(max=600dp)`
+   - `AlertScreen`: columna central limitada a `widthIn(max=480dp)` — no se estira en landscape/tablet
+2. ~~**Aprovechamiento de espacio en `expanded`: panel lateral con agenda + detalle.**~~ → ✅
+   - `TabletDetailPanel`: panel inline (no BottomSheet) con título, countdown en color accent, time,
+     location, link, notas, asistentes (cargados async), botón Join, botón Delete (manual alerts)
+   - Selección automática del `nextEvent` cuando no hay evento seleccionado manualmente
 3. Testing en Samsung Galaxy Tab, Lenovo Tab, iPad (futuro).
 4. Ficha tablet diferenciada en Play Store.
 
