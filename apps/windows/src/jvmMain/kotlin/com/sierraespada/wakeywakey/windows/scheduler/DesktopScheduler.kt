@@ -18,9 +18,10 @@ import java.util.Calendar
  * No usa AlarmManager ni ninguna API de SO — todo vive dentro del proceso.
  */
 class DesktopScheduler(
-    private val calendarRepo: CalendarRepository,
+    calendarRepo: CalendarRepository,
     private val onAlertFired: (CalendarEvent) -> Unit,
 ) {
+    @Volatile private var calendarRepo: CalendarRepository = calendarRepo
     private val scope          = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val scheduledJobs  = mutableMapOf<Long, Job>()   // eventId → Job
 
@@ -42,6 +43,11 @@ class DesktopScheduler(
     /** Fuerza una sincronización inmediata (p. ej. al volver de Settings). */
     fun syncNow() {
         scope.launch { sync() }
+    }
+
+    /** Reemplaza el repositorio activo (cuando el usuario conecta/desconecta cuenta). */
+    fun updateRepo(repo: CalendarRepository) {
+        calendarRepo = repo
     }
 
     // ── Sync ──────────────────────────────────────────────────────────────────

@@ -29,8 +29,9 @@ data class HomeUiState(
  * a [dispose] al cerrar la app.
  */
 class HomeViewModel(
-    private val calendarRepo: CalendarRepository,
+    calendarRepo: CalendarRepository,
 ) {
+    @Volatile private var calendarRepo: CalendarRepository = calendarRepo
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -61,6 +62,12 @@ class HomeViewModel(
     }
 
     fun dispose() { scope.cancel() }
+
+    /** Reemplaza el repositorio activo y refresca inmediatamente. */
+    fun updateRepo(repo: CalendarRepository) {
+        calendarRepo = repo
+        refresh()
+    }
 
     // ── Acciones ──────────────────────────────────────────────────────────────
 

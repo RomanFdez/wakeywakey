@@ -3,6 +3,7 @@ package com.sierraespada.wakeywakey.windows.alert
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.window.*
 import com.sierraespada.wakeywakey.model.CalendarEvent
+import com.sierraespada.wakeywakey.windows.AppIcon
 import java.awt.Desktop
 import java.net.URI
 

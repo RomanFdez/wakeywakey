@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
 import com.sierraespada.wakeywakey.windows.alert.AlertWindow
+import com.sierraespada.wakeywakey.windows.calendar.OnboardingWindow
 import com.sierraespada.wakeywakey.windows.home.HomeScreen
 import java.awt.Font
 import java.awt.RenderingHints
@@ -105,7 +106,7 @@ fun main() = application {
                 HomeScreen(
                     vm                = appState.homeVm,
                     onOpenSettings    = { appState.showSettings = true },
-                    onConnectCalendar = { /* TODO Slice 5.2 — onboarding de calendario */ },
+                    onConnectCalendar = { appState.requestCalendarConnect() },
                 )
             }
         }
@@ -133,6 +134,18 @@ fun main() = application {
                 }
             }
         }
+    }
+
+    // ── Onboarding window ─────────────────────────────────────────────────────
+
+    if (appState.showOnboarding) {
+        OnboardingWindow(
+            onConnected = {
+                appState.showOnboarding = false
+                appState.homeVm.refresh()
+            },
+            onDismiss = { appState.showOnboarding = false },
+        )
     }
 
     // ── Alert window ──────────────────────────────────────────────────────────
