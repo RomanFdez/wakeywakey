@@ -5,13 +5,16 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.CalendarContract
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import com.sierraespada.wakeywakey.R
 import com.sierraespada.wakeywakey.alert.AlertActivity
+import com.sierraespada.wakeywakey.calendar.MeetingLinkDetector
 import com.sierraespada.wakeywakey.scheduler.AndroidAlarmScheduler
 
 /**
@@ -31,13 +34,20 @@ import com.sierraespada.wakeywakey.scheduler.AndroidAlarmScheduler
 class AlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        val eventId    = intent.getLongExtra(AndroidAlarmScheduler.EXTRA_EVENT_ID, -1L)
+        val eventId = intent.getLongExtra(AndroidAlarmScheduler.EXTRA_EVENT_ID, -1L)
         if (eventId == -1L) return
 
-        val title      = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_TITLE) ?: context.getString(R.string.notif_fallback_meeting_title)
-        val start      = intent.getLongExtra(AndroidAlarmScheduler.EXTRA_START, 0L)
-        val location   = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_LOCATION)
-        val meetingUrl = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_MEETING_URL)
+        // ── Releer el evento fresco desde el Calendar Provider ────────────────
+        // Los extras del Intent reflejan el estado del evento CUANDO SE PROGRAMÓ
+        // la alarma. Si el evento fue editado después (título, link, etc.) los
+        // extras estarían desactualizados. Siempre consultamos la fuente de verdad.
+        val fresh = readEventFromCalendar(context, eventId)
+
+        val title      = fresh?.first  ?: intent.getStringExtra(AndroidAlarmScheduler.EXTRA_TITLE)
+                         ?: context.getString(R.string.notif_fallback_meeting_title)
+        val start      = fresh?.second ?: intent.getLongExtra(AndroidAlarmScheduler.EXTRA_START, 0L)
+        val location   = fresh?.third  ?: intent.getStringExtra(AndroidAlarmScheduler.EXTRA_LOCATION)
+        val meetingUrl = fresh?.fourth ?: intent.getStringExtra(AndroidAlarmScheduler.EXTRA_MEETING_URL)
 
         val alertIntent = Intent(context, AlertActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -167,5 +177,49 @@ class AlarmReceiver : BroadcastReceiver() {
         private const val JOIN_REQUEST_OFFSET    = 200_000
         private const val SNOOZE_REQUEST_OFFSET  = 300_000
         private const val DISMISS_REQUEST_OFFSET = 400_000
+
+        /**
+         * Lee los datos frescos de un evento desde el Calendar Provider.
+         *
+         * Ejecuta una query sincrónica (single-row, rápida) porque estamos en
+         * BroadcastReceiver.onReceive() y no podemos usar coroutines directamente.
+         *
+         * @return Quadruple(title, startTime, location, meetingUrl) o null si el
+         *         evento fue borrado o no tenemos permiso READ_CALENDAR.
+         */
+        fun readEventFromCalendar(
+            context: Context,
+            eventId: Long,
+        ): Quadruple<String, Long, String?, String?>? {
+            val uri        = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
+            val projection = arrayOf(
+                CalendarContract.Events.TITLE,
+                CalendarContract.Events.DTSTART,
+                CalendarContract.Events.EVENT_LOCATION,
+                CalendarContract.Events.DESCRIPTION,
+            )
+            return try {
+                context.contentResolver.query(uri, projection, null, null, null)
+                    ?.use { cursor ->
+                        if (!cursor.moveToFirst()) return null
+                        val title  = cursor.getString(0)?.takeIf { it.isNotBlank() }
+                        val start  = cursor.getLong(1)
+                        val loc    = cursor.getString(2)?.takeIf { it.isNotBlank() }
+                        val desc   = cursor.getString(3)
+                        val link   = MeetingLinkDetector.extractFromEvent(desc, loc)
+                        Quadruple(title ?: "", start, loc, link)
+                    }
+            } catch (_: SecurityException) {
+                null // READ_CALENDAR permission revoked at runtime
+            }
+        }
     }
 }
+
+/** Tuple de 4 elementos — evita depender de Arrow o añadir una librería externa. */
+data class Quadruple<A, B, C, D>(
+    val first:  A,
+    val second: B,
+    val third:  C,
+    val fourth: D,
+)
