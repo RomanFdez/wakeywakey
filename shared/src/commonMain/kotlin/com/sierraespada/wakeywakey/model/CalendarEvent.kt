@@ -16,6 +16,12 @@ data class CalendarEvent(
     val calendarName: String,
     val meetingLink: String?,   // extraído de description/location por MeetingLinkDetector
     val isAllDay: Boolean,
+    /**
+     * Estado de asistencia del propio usuario.
+     * Valores: 0=NONE, 1=ACCEPTED, 2=DECLINED, 3=INVITED, 4=TENTATIVE
+     * (CalendarContract.Attendees.ATTENDEE_STATUS_*)
+     */
+    val selfAttendeeStatus: Int = 0,
 ) {
     /** Minutos que faltan para que empiece el evento. Negativo si ya empezó. */
     fun minutesUntilStart(now: Long = currentTimeMillis()): Long =

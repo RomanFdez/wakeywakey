@@ -2,23 +2,37 @@ package com.sierraespada.wakeywakey.alert
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.sierraespada.wakeywakey.R
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
 
 private val Yellow = Color(0xFFFFE03A)
 private val Navy   = Color(0xFF1A1A2E)
@@ -79,15 +93,17 @@ fun AlertScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 32.dp),
         ) {
-            Text("⏰", fontSize = 72.sp, modifier = Modifier.scale(scale))
+            Text("⏰", fontSize = 61.sp, modifier = Modifier.scale(scale))
 
-            Text(
+            AutoSizeText(
                 text       = title,
-                fontSize   = 28.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color      = Color.White,
-                textAlign  = TextAlign.Center,
-                lineHeight = 34.sp,
+                maxFontSize = 36.sp,
+                minFontSize = 16.sp,
+                fontWeight  = FontWeight.ExtraBold,
+                color       = Color.White,
+                textAlign   = TextAlign.Center,
+                maxLines    = 3,
+                modifier    = Modifier.fillMaxWidth(),
             )
 
             val timeStr = remember(startTime) {
@@ -116,7 +132,7 @@ fun AlertScreen(
                     colors   = ButtonDefaults.buttonColors(containerColor = Yellow),
                     shape    = RoundedCornerShape(18.dp),
                 ) {
-                    Text("Join now", color = Navy, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(stringResource(R.string.alert_join_now), color = Navy, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
 
@@ -129,9 +145,7 @@ fun AlertScreen(
             )
 
             // ── Dismiss ───────────────────────────────────────────────────────
-            TextButton(onClick = onDismiss) {
-                Text("Dismiss", color = Color.White.copy(alpha = 0.45f), fontSize = 14.sp)
-            }
+            SwipeToDismiss(onDismiss = onDismiss)
         }
     }
 
@@ -162,7 +176,7 @@ private fun SnoozeRow(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
-            text      = "Snooze",
+            text      = stringResource(R.string.alert_snooze_label),
             fontSize  = 13.sp,
             color     = Color.White.copy(alpha = 0.4f),
             textAlign = TextAlign.Center,
@@ -174,7 +188,7 @@ private fun SnoozeRow(
         ) {
             // 1 min
             SnoozeChip(
-                label    = "1 min",
+                label    = stringResource(R.string.alert_snooze_1min),
                 modifier = Modifier.weight(1f),
                 onClick  = { onSnooze(60_000L) },
             )
@@ -182,14 +196,14 @@ private fun SnoozeRow(
             if (showAtStart) {
                 val minsToStart = (millisToStart / 60_000L).toInt()
                 SnoozeChip(
-                    label    = "At start (+${minsToStart}m)",
+                    label    = stringResource(R.string.alert_snooze_at_start, minsToStart),
                     modifier = Modifier.weight(1.4f),
                     onClick  = { onSnooze(millisToStart) },
                 )
             }
             // Custom
             SnoozeChip(
-                label    = "Custom…",
+                label    = stringResource(R.string.alert_snooze_custom),
                 modifier = Modifier.weight(1f),
                 onClick  = onCustomRequested,
             )
@@ -227,7 +241,7 @@ private fun CustomSnoozeDialog(
         onDismissRequest = onDismiss,
         containerColor   = Color(0xFF16213E),
         title = {
-            Text("Snooze for…", color = Color.White, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.alert_snooze_dialog_title), color = Color.White, fontWeight = FontWeight.Bold)
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -260,7 +274,7 @@ private fun CustomSnoozeDialog(
                         isCustom   = customText.isNotEmpty()
                         selected   = customText.toIntOrNull() ?: selected
                     },
-                    placeholder   = { Text("or type minutes…", color = Color.White.copy(alpha = 0.3f)) },
+                    placeholder   = { Text(stringResource(R.string.alert_snooze_type_minutes), color = Color.White.copy(alpha = 0.3f)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine    = true,
                     colors        = OutlinedTextFieldDefaults.colors(
@@ -281,12 +295,168 @@ private fun CustomSnoozeDialog(
                 colors   = ButtonDefaults.buttonColors(containerColor = Yellow, contentColor = Navy),
             ) {
                 val m = if (isCustom) customText.toIntOrNull() ?: selected else selected
-                Text("Snooze ${m}m", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.alert_snooze_confirm, m), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color.White.copy(alpha = 0.5f))
+                Text(stringResource(R.string.alert_cancel), color = Color.White.copy(alpha = 0.5f))
+            }
+        },
+    )
+}
+
+// ─── Swipe-to-dismiss ─────────────────────────────────────────────────────────
+
+/**
+ * iOS-style "slide to dismiss" track. The user must drag the thumb at least
+ * [DISMISS_THRESHOLD] of the track width to trigger [onDismiss].
+ * Releasing early snaps the thumb back with a spring animation.
+ *
+ * Key fix: maxOffset is stored as MutableState so the pointerInput lambda always
+ * reads the live value. pointerInput key = trackWidthPx so the gesture handler
+ * is reinstalled once the real width is known (onSizeChanged fires after first draw).
+ */
+@Composable
+private fun SwipeToDismiss(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scope       = rememberCoroutineScope()
+    val density     = androidx.compose.ui.platform.LocalDensity.current
+    val thumbSizeDp = 52.dp
+    val trackPadDp  = 6.dp
+    val thumbSizePx = with(density) { thumbSizeDp.toPx() }
+    val trackPadPx  = with(density) { trackPadDp.toPx() }
+
+    // Store as State so the gesture lambda always reads the latest value
+    val maxOffset = remember { mutableFloatStateOf(0f) }
+    val offsetX   = remember { Animatable(0f) }
+
+    val progress = if (maxOffset.floatValue > 0f)
+        (offsetX.value / maxOffset.floatValue).coerceIn(0f, 1f)
+    else 0f
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(68.dp)
+            .onSizeChanged { size ->
+                maxOffset.floatValue = (size.width - thumbSizePx - trackPadPx * 2f)
+                    .coerceAtLeast(0f)
+            }
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(1.5.dp, Color.White.copy(alpha = 0.13f), CircleShape),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        // Filled track grows with drag
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(progress)
+                .background(Yellow.copy(alpha = (0.18f * progress)), CircleShape)
+        )
+
+        // Hint label fades as the user drags
+        Text(
+            text      = stringResource(R.string.alert_slide_to_dismiss),
+            fontSize  = 13.sp,
+            color     = Color.White.copy(alpha = (0.38f - progress * 0.5f).coerceAtLeast(0f)),
+            modifier  = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center,
+        )
+
+        // Draggable thumb — key = maxOffset.floatValue so the gesture block
+        // is reinstalled after onSizeChanged sets the real maxOffset
+        Box(
+            modifier = Modifier
+                .padding(start = trackPadDp)
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .size(thumbSizeDp)
+                .clip(CircleShape)
+                .background(Yellow)
+                .pointerInput(maxOffset.floatValue) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            val current = offsetX.value
+                            val max     = maxOffset.floatValue
+                            val prog    = if (max > 0f) current / max else 0f
+                            scope.launch {
+                                if (prog >= DISMISS_THRESHOLD) {
+                                    offsetX.animateTo(max, spring(stiffness = Spring.StiffnessMediumLow))
+                                    onDismiss()
+                                } else {
+                                    offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMedium))
+                                }
+                            }
+                        },
+                        onDragCancel = {
+                            scope.launch {
+                                offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMedium))
+                            }
+                        },
+                        onHorizontalDrag = { _, dragAmount ->
+                            scope.launch {
+                                offsetX.snapTo(
+                                    (offsetX.value + dragAmount).coerceIn(0f, maxOffset.floatValue)
+                                )
+                            }
+                        },
+                    )
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("›", fontSize = 26.sp, color = Navy, fontWeight = FontWeight.ExtraBold)
+        }
+    }
+}
+
+private const val DISMISS_THRESHOLD = 0.75f
+
+// ─── Auto-size text ───────────────────────────────────────────────────────────
+
+/**
+ * Text que reduce su fontSize automáticamente hasta [minFontSize] para que
+ * quepa dentro de su espacio. Si aun así hay overflow, trunca con "…".
+ * Solo dibuja cuando ha encontrado el tamaño estable (evita flash visual).
+ */
+@Composable
+private fun AutoSizeText(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = Color.White,
+    maxFontSize: TextUnit = 36.sp,
+    minFontSize: TextUnit = 16.sp,
+    fontWeight: FontWeight = FontWeight.Normal,
+    textAlign: TextAlign = TextAlign.Start,
+    maxLines: Int = Int.MAX_VALUE,
+) {
+    // Resetear cuando cambia el texto (no ocurre en AlertScreen pero es correcto)
+    var fontSize    by remember(text) { mutableStateOf(maxFontSize) }
+    var readyToDraw by remember(text) { mutableStateOf(false) }
+
+    Text(
+        text       = text,
+        modifier   = modifier.drawWithContent { if (readyToDraw) drawContent() },
+        color      = color,
+        fontSize   = fontSize,
+        fontWeight = fontWeight,
+        textAlign  = textAlign,
+        maxLines   = maxLines,
+        overflow   = TextOverflow.Ellipsis,
+        lineHeight = (fontSize.value * 1.22f).sp,
+        onTextLayout = { result ->
+            if (result.hasVisualOverflow) {
+                val next = (fontSize.value * 0.9f).sp
+                if (next > minFontSize) {
+                    fontSize = next         // sigue reduciendo
+                } else {
+                    fontSize    = minFontSize
+                    readyToDraw = true      // llegamos al mínimo → pintar con ellipsis
+                }
+            } else {
+                readyToDraw = true          // cabe perfectamente
             }
         },
     )
@@ -300,15 +470,16 @@ private fun CountdownText(secondsLeft: Long) {
         secondsLeft > 0 -> {
             val m    = secondsLeft / 60
             val s    = secondsLeft % 60
-            val text = if (m > 0) "Starts in ${m}m ${s}s" else "Starts in ${s}s"
+            val text = if (m > 0) stringResource(R.string.alert_starts_in_ms, m, s)
+                       else       stringResource(R.string.alert_starts_in_s, s)
             Text(text = text, fontSize = 17.sp, color = Yellow, fontWeight = FontWeight.SemiBold)
         }
         secondsLeft >= -30 -> {
-            Text(text = "Starting NOW", fontSize = 20.sp, color = Coral, fontWeight = FontWeight.Bold)
+            Text(text = stringResource(R.string.alert_starting_now), fontSize = 20.sp, color = Coral, fontWeight = FontWeight.Bold)
         }
         else -> {
             val m = (-secondsLeft / 60).toInt()
-            Text(text = "Started ${m}m ago", fontSize = 16.sp, color = Color.White.copy(alpha = 0.5f))
+            Text(text = stringResource(R.string.alert_started_ago, m), fontSize = 16.sp, color = Color.White.copy(alpha = 0.5f))
         }
     }
 }

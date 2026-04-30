@@ -40,9 +40,9 @@ private val Green  = Color(0xFF4CAF50)
 
 // ─── Permission item model ────────────────────────────────────────────────────
 
-private enum class PermAction { CALENDAR, NOTIFICATIONS, EXACT_ALARM, BATTERY, FULL_SCREEN }
+internal enum class PermAction { CALENDAR, NOTIFICATIONS, EXACT_ALARM, BATTERY, FULL_SCREEN, OVERLAY }
 
-private data class PermItem(
+internal data class PermItem(
     val emoji: String,
     val title: String,
     val rationale: String,
@@ -50,49 +50,50 @@ private data class PermItem(
     val required: Boolean = true,
 )
 
-private val PERM_ITEMS = listOf(
+internal val PERM_ITEMS = listOf(
     PermItem(
         emoji     = "📅",
-        title     = "Calendar access",
-        rationale = "Reads your meetings to schedule alerts. Your data never leaves your device.",
+        title     = "Acceso al calendario",
+        rationale = "Lee tus reuniones para programar alertas. Tus datos no salen del dispositivo.",
         action    = PermAction.CALENDAR,
     ),
     PermItem(
         emoji     = "🔔",
-        title     = "Notifications",
-        rationale = "Sends the meeting alert as a high-priority notification.",
+        title     = "Notificaciones",
+        rationale = "Envía la alerta como notificación de máxima prioridad.",
         action    = PermAction.NOTIFICATIONS,
     ),
     PermItem(
         emoji     = "⏰",
-        title     = "Exact alarms",
-        rationale = "Android 12+ requires a special permission to fire alarms at the exact meeting time.",
+        title     = "Alarmas exactas",
+        rationale = "Necesario en Android 12+ para disparar la alerta justo a tiempo.",
         action    = PermAction.EXACT_ALARM,
     ),
     PermItem(
-        emoji     = "🔋",
-        title     = "Battery optimization",
-        rationale = "Prevents Android from sleeping the app and missing alerts when the screen is off.",
-        action    = PermAction.BATTERY,
+        emoji     = "🖥️",
+        title     = "Mostrar sobre otras apps",
+        rationale = "Abre la alerta a pantalla completa aunque estés usando otra app.",
+        action    = PermAction.OVERLAY,
         required  = false,
     ),
     PermItem(
-        emoji     = "📱",
-        title     = "Full-screen alerts",
-        rationale = "Shows the alert over the lock screen so you never miss a meeting (Android 14+).",
-        action    = PermAction.FULL_SCREEN,
+        emoji     = "🔋",
+        title     = "Sin optimización de batería",
+        rationale = "Evita que Android duerma la app y pierda alertas con la pantalla apagada.",
+        action    = PermAction.BATTERY,
         required  = false,
     ),
 )
 
 // ─── State → item mapping ─────────────────────────────────────────────────────
 
-private fun PermissionsState.isGranted(item: PermItem): Boolean = when (item.action) {
+internal fun PermissionsState.isGranted(item: PermItem): Boolean = when (item.action) {
     PermAction.CALENDAR       -> calendar
     PermAction.NOTIFICATIONS  -> notifications
     PermAction.EXACT_ALARM    -> exactAlarm
     PermAction.BATTERY        -> batteryOptimization
     PermAction.FULL_SCREEN    -> fullScreenIntent
+    PermAction.OVERLAY        -> overlay
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -306,7 +307,7 @@ private fun PermissionRow(
 
 // ─── Permission request dispatcher ───────────────────────────────────────────
 
-private fun requestPermission(
+internal fun requestPermission(
     context: android.content.Context,
     item: PermItem,
     runtimeLauncher: (Array<String>) -> Unit,
@@ -352,6 +353,15 @@ private fun requestPermission(
                     }
                 )
             }
+        }
+
+        PermAction.OVERLAY -> {
+            context.startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${context.packageName}"),
+                ).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
+            )
         }
     }
 }

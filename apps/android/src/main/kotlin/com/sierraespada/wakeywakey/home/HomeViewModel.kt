@@ -9,12 +9,16 @@ import android.provider.CalendarContract
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.sierraespada.wakeywakey.calendar.AndroidCalendarRepository
+import com.sierraespada.wakeywakey.manualert.ManualAlert
+import com.sierraespada.wakeywakey.manualert.ManualAlertRepository
 import com.sierraespada.wakeywakey.model.CalendarEvent
+import com.sierraespada.wakeywakey.scheduler.AndroidAlarmScheduler
+import com.sierraespada.wakeywakey.settings.SettingsRepository
+import com.sierraespada.wakeywakey.billing.EntitlementManager
+import com.sierraespada.wakeywakey.util.applyFreeTierLimits
+import com.sierraespada.wakeywakey.util.applySettings
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -24,31 +28,22 @@ data class HomeUiState(
     val nowMillis: Long             = System.currentTimeMillis(),
     val error: String?              = null,
 ) {
-    /** The most imminent event: ongoing or about to start. */
     val nextEvent: CalendarEvent?
         get() = events.firstOrNull { it.endTime > nowMillis }
 
-    /**
-     * All remaining events after the next one.
-     * Events that overlap with nextEvent (i.e. also ongoing) keep their
-     * "Ongoing" badge in the row because isOngoing is computed per-event
-     * in the UI from startTime/endTime vs nowMillis — not from position.
-     */
     val laterEvents: List<CalendarEvent>
         get() = if (nextEvent != null) events.drop(1) else events
 }
 
 class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val repo = AndroidCalendarRepository(app)
+    private val repo         = AndroidCalendarRepository(app)
+    private val manualRepo   = ManualAlertRepository.getInstance(app)
+    private val settingsRepo = SettingsRepository.getInstance(app)
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    /**
-     * ContentObserver: fires immediately when a local calendar change happens
-     * (e.g. event created/edited on this device).
-     */
     private val calendarObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean, uri: Uri?) = silentReload()
     }
@@ -58,10 +53,24 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         tickClock()
         startPeriodicRefresh()
 
-        // Watch both URIs — Events for local edits, Instances for sync'd changes
         val cr = app.contentResolver
         cr.registerContentObserver(CalendarContract.Events.CONTENT_URI,    true, calendarObserver)
         cr.registerContentObserver(CalendarContract.Instances.CONTENT_URI, true, calendarObserver)
+
+        // Re-render when manual alerts change
+        viewModelScope.launch {
+            manualRepo.alerts.collect { silentReload() }
+        }
+
+        // Re-render when settings change (filters, work hours, etc.)
+        viewModelScope.launch {
+            settingsRepo.settings.drop(1).collect { silentReload() }
+        }
+
+        // Re-render when Pro status changes (e.g. trial expires or purchase completes)
+        viewModelScope.launch {
+            EntitlementManager.isPro.drop(1).collect { silentReload() }
+        }
     }
 
     override fun onCleared() {
@@ -69,10 +78,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         super.onCleared()
     }
 
-    /** Called by pull-to-refresh — shows the spinner. */
     fun refresh() = loadEvents()
 
-    /** Visible load: sets isLoading = true so the PTR spinner shows. */
     private fun loadEvents() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
@@ -80,11 +87,6 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /**
-     * Silent background reload — updates events without showing the spinner.
-     * Used by the ContentObserver and the periodic timer so the UI doesn't
-     * flash a loading state every 30 seconds.
-     */
     private fun silentReload() {
         viewModelScope.launch { fetchAndUpdate() }
     }
@@ -93,8 +95,26 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         try {
             val now      = System.currentTimeMillis()
             val endOfDay = endOfDay(now)
-            val events   = repo.getUpcomingEvents(fromTime = now - 5 * 60_000L, toTime = endOfDay)
-            _uiState.update { it.copy(isLoading = false, events = events) }
+            val settings = settingsRepo.settings.firstOrNull()
+
+            val isPro = EntitlementManager.isPro.value
+
+            val calEvents  = repo.getUpcomingEvents(
+                fromTime      = now - 5 * 60_000L,
+                toTime        = endOfDay,
+                includeAllDay = settings?.showAllDayEvents ?: false,
+            )
+                .let { if (settings != null) it.applySettings(settings) else it }
+                .let { if (!isPro) it.applyFreeTierLimits() else it }  // free: 1 cal, max 3
+
+            val manualEvts = manualRepo.alerts.firstOrNull()
+                ?.filter { it.dateTimeMillis > now - 5 * 60_000L }
+                ?.map { it.toCalendarEvent() }
+                ?: emptyList()
+
+            // Las alertas manuales siempre se muestran (el usuario las creó explícitamente)
+            val merged = (calEvents + manualEvts).sortedBy { it.startTime }
+            _uiState.update { it.copy(isLoading = false, events = merged) }
         } catch (e: SecurityException) {
             _uiState.update { it.copy(isLoading = false, error = "Calendar permission revoked.") }
         } catch (e: Exception) {
@@ -102,21 +122,35 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /**
-     * Silent reload every 30 seconds.
-     * Catches cases where the ContentObserver misses a notification
-     * (e.g. Google Calendar sync happening in the background).
-     */
-    private fun startPeriodicRefresh() {
+    /** Saves a new manual alert and schedules the alarm. */
+    fun addManualAlert(title: String, dateTimeMillis: Long, notes: String) {
         viewModelScope.launch {
-            while (isActive) {
-                delay(30_000L)
-                silentReload()
-            }
+            val alert = ManualAlert(
+                id            = System.currentTimeMillis(),
+                title         = title,
+                dateTimeMillis = dateTimeMillis,
+                notes         = notes,
+            )
+            manualRepo.add(alert)
+            val minutesBefore = settingsRepo.settings.firstOrNull()?.alertMinutesBefore ?: 1
+            AndroidAlarmScheduler(getApplication()).schedule(alert.toCalendarEvent(), minutesBefore)
         }
     }
 
-    /** Updates the clock every second for the live countdown. */
+    /** Removes a manual alert and cancels its alarm. */
+    fun removeManualAlert(id: Long) {
+        viewModelScope.launch {
+            manualRepo.remove(id)
+            AndroidAlarmScheduler(getApplication()).cancel(id)
+        }
+    }
+
+    private fun startPeriodicRefresh() {
+        viewModelScope.launch {
+            while (isActive) { delay(30_000L); silentReload() }
+        }
+    }
+
     private fun tickClock() {
         viewModelScope.launch {
             while (isActive) {

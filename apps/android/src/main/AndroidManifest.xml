@@ -17,6 +17,9 @@
     <!-- Overlay sobre otras apps (opcional, para modo sin activity) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- Vibración en alertas -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- Mantener CPU activa para alarmas -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
@@ -72,6 +75,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- Acciones inline de la notificación heads-up (Snooze, Dismiss) -->
+        <receiver
+            android:name=".alarm.NotificationActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.sierraespada.wakeywakey.NOTIF_SNOOZE" />
+                <action android:name="com.sierraespada.wakeywakey.NOTIF_DISMISS" />
+            </intent-filter>
+        </receiver>
+
         <!-- BroadcastReceiver para relanzar alarmas tras reinicio -->
         <receiver
             android:name=".alarm.BootReceiver"
@@ -90,6 +103,30 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="calendar_alert" />
+        </service>
+
+        <!-- Home widget (Glance) -->
+        <receiver
+            android:name=".widget.MeetingWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/meeting_widget_info" />
+        </receiver>
+
+        <!-- Quick Settings tile (Android 7+) -->
+        <service
+            android:name=".tile.PauseTileService"
+            android:exported="true"
+            android:label="@string/tile_label"
+            android:icon="@drawable/ic_tile_alarm"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
         </service>
 
     

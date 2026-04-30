@@ -1,4 +1,89 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- App -->
     <string name="app_name">WakeyWakey</string>
+    <string name="widget_description">Shows your next meeting of the day</string>
+    <string name="tile_label">WakeyWakey</string>
+
+    <!-- Alert screen -->
+    <string name="alert_join_now">Join now</string>
+    <string name="alert_snooze_label">Snooze</string>
+    <string name="alert_snooze_1min">1 min</string>
+    <string name="alert_snooze_at_start">At start (+%dm)</string>
+    <string name="alert_snooze_custom">Custom…</string>
+    <string name="alert_slide_to_dismiss">slide to dismiss  ›</string>
+    <string name="alert_starts_in_ms">Starts in %1$dm %2$ds</string>
+    <string name="alert_starts_in_s">Starts in %ds</string>
+    <string name="alert_starting_now">Starting NOW</string>
+    <string name="alert_started_ago">Started %dm ago</string>
+    <string name="alert_snooze_dialog_title">Snooze for…</string>
+    <string name="alert_snooze_type_minutes">or type minutes…</string>
+    <string name="alert_snooze_confirm">Snooze %dm</string>
+    <string name="alert_cancel">Cancel</string>
+
+    <!-- Home screen -->
+    <string name="home_later_today">Later today</string>
+    <string name="home_join_now">Join now →</string>
+    <string name="home_event_ongoing">● Ongoing</string>
+    <string name="home_event_in_minutes">in %dm</string>
+    <string name="home_no_events">No meetings today</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_back">← Back</string>
+    <string name="settings_section_alert_display">Alert display</string>
+    <string name="settings_overlay_title">Show over other apps</string>
+    <string name="settings_overlay_granted">Alerts open full-screen even when your phone is unlocked.</string>
+    <string name="settings_overlay_not_granted">Grant this to show alerts full-screen while using other apps.</string>
+    <string name="settings_overlay_allow">Allow</string>
+    <string name="settings_section_general">General</string>
+    <string name="settings_alert_time_label">Alert time before meeting</string>
+    <string name="settings_sound">Sound</string>
+    <string name="settings_repeat_sound">Repeat sound until dismissed</string>
+    <string name="settings_vibration">Vibration</string>
+    <string name="settings_section_events">Events</string>
+    <string name="settings_filter_video_only">Video conference only</string>
+    <string name="settings_filter_accepted_only">Accepted events only</string>
+    <string name="settings_show_all_day">Show all-day events</string>
+    <string name="settings_work_hours">Working hours only</string>
+    <string name="settings_work_hours_from">From</string>
+    <string name="settings_work_hours_to">to</string>
+    <string name="settings_section_calendars">Calendars</string>
+    <string name="settings_calendars_hint">All calendars active when none selected.</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">Upgrade to Pro</string>
+    <string name="paywall_subtitle">Get the most out of every meeting</string>
+    <string name="paywall_feature_alert_time">Custom alert timing</string>
+    <string name="paywall_feature_calendars">Calendar filtering</string>
+    <string name="paywall_feature_work_hours">Work hours schedule</string>
+    <string name="paywall_feature_widget">Home screen widget</string>
+    <string name="paywall_feature_tile">Quick Settings tile</string>
+    <string name="paywall_feature_snooze">Custom snooze options</string>
+    <string name="paywall_plan_monthly">Monthly</string>
+    <string name="paywall_plan_annual">Annual</string>
+    <string name="paywall_plan_lifetime">Lifetime</string>
+    <string name="paywall_badge_best_value">Best Value</string>
+    <string name="paywall_badge_trial">7-day free trial</string>
+    <string name="paywall_badge_one_time">One-time payment</string>
+    <string name="paywall_cta_trial">Start Free Trial</string>
+    <string name="paywall_cta_buy">Buy Now</string>
+    <string name="paywall_restore">Restore purchase</string>
+    <string name="paywall_cancel_anytime">Cancel anytime · No commitment</string>
+    <string name="paywall_pro_badge">PRO</string>
+    <string name="paywall_trial_expired">Your free trial has ended. Subscribe now and get 7 more days free before your first charge.</string>
+    <string name="paywall_trial_days_left">%d days left in your free trial</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_alerts_name">Meeting Alerts</string>
+    <string name="notif_channel_alerts_desc">Full-screen alerts for upcoming meetings</string>
+    <string name="notif_body_starting_now">Your meeting is starting now</string>
+    <string name="notif_action_join">Join</string>
+    <string name="notif_action_snooze">Snooze 5m</string>
+    <string name="notif_action_dismiss">Dismiss</string>
+    <string name="notif_channel_service_name">WakeyWakey Running</string>
+    <string name="notif_channel_service_desc">Keeps meeting alerts active</string>
+    <string name="notif_service_title">WakeyWakey</string>
+    <string name="notif_service_text">Meeting alerts active</string>
+    <string name="notif_fallback_meeting_title">Meeting</string>
 </resources>

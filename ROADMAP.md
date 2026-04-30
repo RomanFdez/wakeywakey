@@ -121,14 +121,18 @@
 **Objetivo:** app funcional en móvil que resuelve el 100% del caso de uso core.
 
 **Prioridad MUST (MVP):**
-1. ~~**Permisos y onboarding:**~~ → ✅ **Slice 2 completo (2026-04-27)**
+1. ~~**Permisos y onboarding:**~~ → ✅ **Slices 2 + 3 extendido (2026-04-28)**
    - ~~`READ_CALENDAR` (Calendar Provider API)~~
    - ~~`POST_NOTIFICATIONS` (Android 13+)~~
    - ~~`USE_FULL_SCREEN_INTENT` (Android 14+ requiere declaración especial)~~
    - ~~`SCHEDULE_EXACT_ALARM` / `USE_EXACT_ALARM`~~
    - ~~Ignorar optimización de batería (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`)~~
-   - ~~Onboarding paso a paso guiando cada permiso con su porqué.~~
-   - `SYSTEM_ALERT_WINDOW` (opcional, overlay sobre otras apps — diferido)
+   - ~~`SYSTEM_ALERT_WINDOW` — overlay sobre otras apps: alerta full-screen con pantalla desbloqueada~~
+   - ~~Onboarding multi-página (4 páginas): Bienvenida → Permisos → Selector de calendarios → ¡Listo!~~
+   - ~~Selector de calendarios en onboarding: agrupado por cuenta, con puntos de color~~
+   - ~~Alerta demo al finalizar el onboarding~~
+   - ~~Botón de debug "🔄 Reset onboarding" para desarrollo~~
+   - ~~`OverlayPermissionCard` en Settings para gestionar `SYSTEM_ALERT_WINDOW` post-onboarding~~
 
 2. ~~**Detección de eventos:**~~ → ✅ **Slice 1 completo (2026-04-27)**
    - ~~Lectura de Calendar Provider (Google, Outlook, Exchange, cualquier calendario sync'd en el device).~~
@@ -141,10 +145,13 @@
    - ~~Reprogramación al boot (`BOOT_COMPLETED`).~~
    - Cancelación si el evento se elimina/mueve → pendiente
 
-4. ~~**Alerta full-screen:**~~ → ✅ **Slice 1 completo (2026-04-27)**
+4. ~~**Alerta full-screen:**~~ → ✅ **Slice 1 + extendido (2026-04-28)**
    - ~~Activity con `FLAG_SHOW_WHEN_LOCKED` + `FLAG_TURN_SCREEN_ON` + `FLAG_KEEP_SCREEN_ON`.~~
    - ~~Lanzada vía Full-Screen Intent desde NotificationChannel de alta prioridad.~~
    - ~~Muestra: título, hora, countdown, sala virtual (link), botones **Unirse / Snooze / Ok**.~~
+   - ~~Doble vía en `AlarmReceiver`: siempre notificación heads-up + `startActivity` si overlay concedido.~~
+   - ~~Notificación heads-up con BigTextStyle, `setOngoing(true)`, acciones inline: **Join / Snooze 5m / Dismiss**.~~
+   - ~~`NotificationActionReceiver`: maneja snooze (reprograma alarma +5 min) y dismiss desde la notificación.~~
    - Sonido + vibración → pendiente (Slice Settings)
 
 5. ~~**Detección de videollamada:**~~ → ✅ **Slice 1 completo (2026-04-27)**
@@ -152,41 +159,113 @@
    - ~~Lista de 30+ servicios: Meet, Zoom, Teams, Webex, Whereby, Jitsi, GoToMeeting, BlueJeans, Around, Gather, Discord, Slack huddle, etc.~~
    - ~~Botón "Join" en HomeScreen + AlertActivity.~~
 
-6. ~~**HomeScreen:**~~ → ✅ **Slice 3 completo (2026-04-27)**
+6. ~~**HomeScreen:**~~ → ✅ **Slice 3 + extendido (2026-04-28)**
    - ~~Tarjeta próxima reunión con countdown en vivo (HH:MM:SS).~~
    - ~~Lista de reuniones restantes del día.~~
    - ~~Botón "Unirse ahora" si hay meetingLink.~~
    - ~~Animación de pulso cuando faltan ≤ 5 min.~~
+   - ~~EventRow: badge "● Ongoing" en verde para eventos en curso.~~
+   - ~~EventRow: countdown "in Xm" en amarillo para eventos ≤ 30 min.~~
+   - ~~Alertas manuales: añadir/eliminar desde `AddAlertSheet` (nav bar fix con `navigationBarsPadding`).~~
+   - ~~ContentObserver + refresco periódico cada 30 s + refresco en cambios de manual alerts.~~
 
-7. **Settings básicos:** → ⏳ pendiente (Slice 4)
-   - Tiempo antes del evento (30s, 1min, 2, 5, 10).
-   - Sonido (selector de ringtones del sistema + 5 incluidos).
-   - Vibración on/off.
-   - Lista de calendarios activados.
-   - Persistencia con DataStore.
+7. ~~**Settings básicos:**~~ → ✅ **Slice 4 completo (2026-04-29)**
+   - ~~Tiempo de aviso, calendarios activos, horas de funcionamiento, sonido/vibración.~~
+   - ~~Persistencia con DataStore.~~
+   - ~~Filtros aplicados en SchedulerService, CalendarSyncWorker y HomeViewModel.~~
+   - ~~Cancelación de alarmas huérfanas cuando un evento se borra o queda fuera del filtro.~~
+   - ~~`EventFilterUtils`: lógica de filtrado compartida (calendarios, video-only, horas laborales, pausa).~~
+   - ~~HomeViewModel se recarga automáticamente cuando cambian los Settings.~~
 
-8. **WorkManager periódico:** → ⏳ pendiente (Slice 4)
-   - CalendarSyncWorker cada 15 min cuando la app está en background.
+8. ~~**WorkManager periódico:**~~ → ✅ **Slice 4 completo (2026-04-29)**
+   - ~~`CalendarSyncWorker` cada 15 min — rescanea calendario y reprograma alarmas en background.~~
 
-9. **i18n:** EN + ES desde v1, PT-BR/DE/FR después → ⏳ pendiente
+9. ~~**i18n:** EN + ES desde v1, PT-BR/DE/FR después~~ → ✅ **completo (2026-04-29)**
+   - ~~`values/strings.xml` (EN) + `values-es/strings.xml` (ES): 60+ strings~~
+   - ~~AlertScreen, HomeScreen, SettingsScreen → `stringResource(R.string.xxx)`~~
+   - ~~AlarmReceiver, SchedulerService → `context.getString(R.string.xxx)`~~
+
+10. ~~**`filterAcceptedOnly`:**~~ → ✅ **completo (2026-04-29)**
+    - ~~`selfAttendeeStatus` leído de `CalendarContract.Instances.SELF_ATTENDEE_STATUS`.~~
+    - ~~Filtra eventos con status DECLINED (2); NONE y ACCEPTED se muestran.~~
 
 **NICE-TO-HAVE (en MVP si da tiempo):**
-- Snooze 1/5 min. *(parcial: botón en AlertActivity, sin lógica real aún)*
-- Home widget mínimo con próxima reunión.
-- Quick Settings tile "Pausar alertas 1h".
+- ~~Snooze 5 min~~ ✅ implementado (AlertActivity + NotificationActionReceiver)
+- ~~Home widget mínimo con próxima reunión~~ ✅ **completo (2026-04-29)** — Glance, 3 tamaños responsivos (2×1/4×1/3×2), preview en picker, refresh desde WorkManager
+- ~~Quick Settings tile "Pausar alertas 1h"~~ ✅ **completo (2026-04-29)** — pausa/reanuda, refresca widget al toggle
 
-**Entregables:** APK en closed beta, 20-50 testers reclutados via waitlist.
+**Entregables:** APK en closed beta interna (sin publicidad pública).
+
+> ✅ **Fase 1 MVP completada — 2026-04-29.** Todos los MUSTs y todos los nice-to-haves implementados.
+
+---
+
+> ## ⚠️ Decisión de estrategia de lanzamiento (2026-04-29)
+>
+> **No se lanzará Android públicamente de forma aislada.**
+>
+> El lanzamiento público será coordinado cuando estén listas:
+> 1. App **Windows** (la plataforma principal — donde el usuario está trabajando)
+> 2. App **Android** (companion, ya lista)
+> 3. App **macOS** y/o **iOS** (si aplica)
+> 4. **Web sierraespada.com** con página de producto WakeyWakey
+>
+> Motivo: Windows es la plataforma de mayor valor (el usuario está en pantalla completa
+> trabajando). Lanzar solo Android sin Windows daría una imagen incompleta del producto
+> y los usuarios de escritorio no sabrían que existe una versión para su plataforma principal.
+>
+> **Hasta el launch coordinado:** Android queda en closed beta interna para testing y pulido.
 
 ---
 
 ### 💰 Fase 2 — Monetización y pulido (2-3 semanas)
-1. Integración RevenueCat + productos en Play Console.
-2. **Paywall bien diseñado** (no intrusivo): aparece tras 7 días o al tocar features premium.
-3. Free trial 7 días sin pedir tarjeta.
-4. Onboarding con "tour" de features premium.
-5. Limitaciones del plan gratis definidas (ver §5).
-6. Restaurar compras.
-7. Analytics de funnel (install → permission grant → first alert → paywall → conversion).
+
+1. ~~**Integración RevenueCat + productos en Play Console**~~ → ⏳ **Parcialmente completado (2026-04-29)**
+   - ~~SDK RevenueCat KMP `2.10.2+17.55.1` integrado~~
+   - ~~`EntitlementManager` singleton: trial 14 días (DataStore) + RevenueCat combinados~~
+   - ~~`PaywallScreen`: planes Monthly/Annual/Lifetime, banner trial expirado, CTA dinámico~~
+   - ~~Productos configurados en Play Console: `pro_monthly` (con oferta `trial-7days`), `pro_annual`, `pro_lifetime`~~
+   - ~~API key Test Store activa para desarrollo~~
+   - ⚠️ **Bloqueado:** conexión RevenueCat ↔ Google Play pendiente de verificación de cuenta de pagos (ingreso de prueba no recibido aún). Reanudar cuando llegue el ingreso → vincular Google Cloud → crear Service Account correcta → cambiar a key `goog_`.
+
+2. ~~**Paywall bien diseñado**~~ → ✅ **completo (2026-04-29)**
+   - ~~Pantalla full-screen Navy: hero, lista de 6 features, 3 plan cards, CTA, restore~~
+   - ~~`PlanCard` con radio selector, precio real desde RevenueCat, badge "Mejor opción" / "7 días gratis"~~
+   - ~~Banner rojo trial expirado cuando `trialDaysLeft == 0`~~
+   - ~~Auto-cierre solo cuando compra completa (`wasProOnOpen` guard)~~
+   - ~~Botones debug de simulación de trial: D1 / D7 / D13 / 💀 / 💳~~
+
+3. ~~**Free trial**~~ → ✅ **completo (2026-04-29)**
+   - ~~Trial de app: 14 días desde instalación (DataStore `install_date`)~~
+   - ~~Trial Play Store: 7 días en oferta `trial-7days` de Play Console~~
+   - ~~Total posible: hasta 21 días gratis~~
+
+4. ~~**Onboarding con "tour" de features premium**~~ → ✅ **completo (2026-04-30)**
+   - ~~Nueva página "Tu prueba Pro ya está activa" entre Calendarios y ¡Todo listo!~~
+   - ~~Lista de 6 features Pro con checkmarks verdes~~
+   - ~~Botón "¡Genial, vamos! →" — deja claro que el trial ya está activo, no hay que activar nada~~
+   - ~~Fix selector de calendarios: desmarcar uno desde "todos activos" ya funciona correctamente~~
+
+5. ~~**Limitaciones del plan gratis**~~ → ✅ **completo (2026-04-29)**
+   - ~~Trial expirado sin suscripción: solo 1 calendario (menor ID) y máximo 3 eventos/día~~
+   - ~~Límite aplicado en HomeViewModel y SchedulerService~~
+   - ~~Settings: features Pro muestran chip PRO amarillo; al pulsar abre paywall~~
+   - ~~Tiempo de aviso: solo 1 min gratis; resto con 🔒~~
+   - ~~Alertas manuales siempre visibles independientemente del tier~~
+
+6. ~~**Restaurar compras**~~ → ✅ **completo (2026-04-29)**
+   - ~~`EntitlementManager.restore()` con `Purchases.restorePurchases`~~
+   - ~~Botón "Restaurar compra" en PaywallScreen~~
+
+7. ~~**Analytics de funnel**~~ → ✅ **completo (2026-04-30)**
+   - ~~`trial_started` (primera instalación), `trial_expired` (0 días sin suscripción)~~
+   - ~~`paywall_shown`, `paywall_dismissed`~~
+   - ~~`plan_selected` (+ `plan: monthly|annual|lifetime`)~~
+   - ~~`purchase_started`, `purchase_completed`, `purchase_failed` (+ `plan`)~~
+   - ~~`purchase_restored`~~
+   - ~~Todos los eventos llegan a PostHog vía `AnalyticsProvider`~~
+
+> ✅ **Fase 2 completada — 2026-04-30** (pendiente: conexión RevenueCat ↔ Google Play bloqueada por verificación cuenta de pagos — reanudar cuando llegue el ingreso de prueba de Google)
 
 ---
 
@@ -321,7 +400,55 @@ Opcional: versión web (PWA). Limitaciones (no puede mostrar fullscreen si pesta
 
 ---
 
-## 5. Estrategia de precios (internacional)
+## 5. Pantalla de Settings — configurables por implementar
+
+> Referencia de diseño: todos los ajustes se persisten con **DataStore** (Android) / preferencias del sistema (Desktop).  
+> Indicado `[solo escritorio]` donde aplica solo a Windows/macOS.
+
+---
+
+### 🔔 General
+
+| Ajuste | Descripción | Valores / notas |
+|---|---|---|
+| **Tiempo de aviso** | Cuántos minutos antes del evento se dispara la alerta | 30 s · 1 min · 2 · 5 · 10 (default: 1 min) |
+| **Sonido** | Selector de tono de alerta | Ringtones del sistema + sonidos incluidos en la app |
+| **Tipos de sonido** ⭐ mejora | Ofrecer varios sonidos cortos y llamativos propios (no solo el ringtone del sistema) | Pack incluido: bocina, campana, ping, chime, beep urgente… |
+| **Volumen del sonido** `[solo escritorio]` | Control de volumen independiente del sistema | Slider 0–100% |
+| **Repetir sonido** | Reproducir el tono repetidamente hasta que el usuario interactúe | Check on/off (default: off → 3 repeticiones cortas) |
+| **Vibración** | Activar/desactivar patrón de vibración en la alerta | Check on/off |
+| **Abrir videoconferencia en** `[solo escritorio]` | Cómo se lanza el enlace de la reunión al pulsar "Join" | App nativa · Navegador predeterminado |
+
+---
+
+### 📅 Eventos
+
+| Ajuste | Descripción | Valores / notas |
+|---|---|---|
+| **Mostrar eventos de** | Ventana temporal que carga y muestra el HomeScreen | Hoy · 2 días · 3 días · Toda la semana (default: Hoy) |
+| **Horas de funcionamiento** | Restringir en qué franja horaria y días actúa la app | Hora inicio · Hora fin · Checkboxes L M X J V S D |
+| **Solo eventos con videoconferencia** | Filtrar la lista y las alertas a eventos que tengan link de reunión | Check on/off (default: off) |
+| **Mostrar eventos de todo el día** | Incluir o excluir eventos all-day en lista y alertas | Check on/off (default: off) |
+| **Calendarios activos** | Seleccionar qué calendarios del dispositivo generan alertas | Lista multi-selección de calendarios disponibles |
+
+---
+
+### 🖥️ Barra de menú `[solo escritorio]`
+
+| Ajuste | Descripción | Valores / notas |
+|---|---|---|
+| **Icono de barra de menú** | Icono que aparece en el system tray / menu bar | Varios iconos incluidos para elegir |
+| **Mostrar próximo evento** | Añade el título del evento (acortado) junto al icono | Check on/off |
+| **Mostrar cuenta regresiva** | Muestra los minutos que faltan para el próximo evento junto al icono | Check on/off |
+
+---
+
+> **Prioridad de implementación:** `Horas de funcionamiento`, `Tiempo de aviso` y `Calendarios activos` son MUST para v1.0.  
+> El resto son SHOULD para v1.1.
+
+---
+
+## 6. Estrategia de precios (internacional)
 
 ### Plan Free — "WakeyWakey Lite"
 - 1 calendario conectado
@@ -359,13 +486,28 @@ Opcional: versión web (PWA). Limitaciones (no puede mostrar fullscreen si pesta
 - SSO SAML, audit logs, DPA, onboarding dedicado
 - Contact sales
 
-### Precios regionales (vía RevenueCat)
+### Precios regionales (vía RevenueCat / LemonSqueezy)
 - India, Brasil, México, Turquía, Indonesia, Filipinas: -50%
 - Países Tier 2: -30%
 
+> ⚠️ **Pendiente antes de launch: definir tabla de precios por región**
+> Los precios base están pensados para USA/UK. Para España y Europa del Sur
+> el poder adquisitivo es diferente y los precios actuales pueden ser una barrera.
+> Ejemplos orientativos a revisar:
+> - Pro mensual: $2.99 USA → ~€1.99 ES
+> - Pro anual: $24.99 USA → ~€14.99 ES
+> - Lifetime: $49 USA → ~€29 ES
+> - Desktop one-time: $39 USA → ~€24 ES
+>
+> Herramientas: RevenueCat tiene precios por país para Android/iOS.
+> LemonSqueezy/Paddle permiten precios por moneda para desktop.
+> Referencia útil: [purchasing-power-parity.com](https://www.purchasing-power-parity.com)
+> para calcular equivalencias justas por país.
+
 ### Trial
-- 7 días gratis Pro sin pedir tarjeta
-- Al acabar → Free tier (no se caduca la app)
+- Android: 7 días gratis Pro sin pedir tarjeta
+- Desktop (Windows): **30 días gratis** completo, sin cuenta, sin tarjeta
+- Al acabar → Free tier con restricciones (ver §desktop sin backend)
 
 ---
 
@@ -428,4 +570,4 @@ Opcional: versión web (PWA). Limitaciones (no puede mostrar fullscreen si pesta
 
 ---
 
-*Documento vivo. Próxima revisión: tras decidir el nombre definitivo.*
+*Documento vivo. Última actualización: 2026-04-29.*

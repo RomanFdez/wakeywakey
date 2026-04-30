@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,18 +16,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 data class PermissionsState(
-    val calendar: Boolean       = false,
-    val notifications: Boolean  = false,
-    val exactAlarm: Boolean     = false,
+    val calendar: Boolean            = false,
+    val notifications: Boolean       = false,
+    val exactAlarm: Boolean          = false,
     val batteryOptimization: Boolean = false,   // true = ignorando la optimización (bueno)
-    val fullScreenIntent: Boolean = false,       // true = permitido
+    val fullScreenIntent: Boolean    = false,   // true = permitido (Android 14+)
+    val overlay: Boolean             = false,   // SYSTEM_ALERT_WINDOW → full-screen con teléfono desbloqueado
 ) {
     /**
      * Los permisos sin los que la app no puede funcionar en absoluto.
-     * batteryOptimization y fullScreenIntent son "muy recomendados" pero no bloquean el flujo.
+     * batteryOptimization, fullScreenIntent y overlay son "muy recomendados" pero no bloquean el flujo.
      */
     val requiredGranted: Boolean get() = calendar && notifications && exactAlarm
-    val allGranted: Boolean get() = requiredGranted && batteryOptimization && fullScreenIntent
+    val allGranted: Boolean get() = requiredGranted && batteryOptimization && fullScreenIntent && overlay
 }
 
 class PermissionsViewModel : ViewModel() {
@@ -67,6 +69,8 @@ class PermissionsViewModel : ViewModel() {
                 } else {
                     true    // Android < 14: siempre permitido
                 },
+
+                overlay = Settings.canDrawOverlays(context),
             )
         }
     }

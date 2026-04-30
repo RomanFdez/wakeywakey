@@ -7,32 +7,37 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
+import com.sierraespada.wakeywakey.R
 import com.sierraespada.wakeywakey.alert.AlertActivity
 import com.sierraespada.wakeywakey.scheduler.AndroidAlarmScheduler
 
 /**
  * Receives the AlarmManager broadcast and shows the full-screen alert.
  *
- * Strategy: always post a MAX-priority notification with setFullScreenIntent.
- * Android handles both cases:
- *   • Screen OFF / locked → system fires the fullScreenIntent immediately,
- *     AlertActivity launches over the lock screen.
- *   • Screen ON           → system shows a brief heads-up AND fires the
- *     fullScreenIntent. AlertActivity cancels the notification in onCreate()
- *     so the heads-up banner disappears as soon as the activity is visible.
+ * Two paths depending on whether the user granted SYSTEM_ALERT_WINDOW:
  *
- * We no longer call startActivity() directly because Android 10+ Background
- * Activity Launch (BAL) restrictions silently block it for most alarm types,
- * resulting in only the heads-up showing instead of the full-screen activity.
+ *   A) Overlay granted  → startActivity() directly. SYSTEM_ALERT_WINDOW exempts the
+ *      app from Android 10+ Background Activity Launch (BAL) restrictions, so
+ *      AlertActivity opens full-screen over whatever is on screen.
+ *
+ *   B) Overlay NOT granted → post a MAX-priority heads-up notification with
+ *      setFullScreenIntent (works when locked/screen-off) plus inline action
+ *      buttons (Join, Snooze 5m, Dismiss) so the user can act without opening
+ *      the app when the phone is unlocked.
  */
 class AlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        val eventId = intent.getLongExtra(AndroidAlarmScheduler.EXTRA_EVENT_ID, -1L)
+        val eventId    = intent.getLongExtra(AndroidAlarmScheduler.EXTRA_EVENT_ID, -1L)
         if (eventId == -1L) return
 
-        val title = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_TITLE) ?: "Meeting"
+        val title      = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_TITLE) ?: context.getString(R.string.notif_fallback_meeting_title)
+        val start      = intent.getLongExtra(AndroidAlarmScheduler.EXTRA_START, 0L)
+        val location   = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_LOCATION)
+        val meetingUrl = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_MEETING_URL)
 
         val alertIntent = Intent(context, AlertActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -40,43 +45,127 @@ class AlarmReceiver : BroadcastReceiver() {
                     Intent.FLAG_ACTIVITY_NO_HISTORY
             putExtra(AlertActivity.EXTRA_EVENT_ID,    eventId)
             putExtra(AlertActivity.EXTRA_TITLE,       title)
-            putExtra(AlertActivity.EXTRA_START,       intent.getLongExtra(AndroidAlarmScheduler.EXTRA_START, 0L))
-            putExtra(AlertActivity.EXTRA_LOCATION,    intent.getStringExtra(AndroidAlarmScheduler.EXTRA_LOCATION))
-            putExtra(AlertActivity.EXTRA_MEETING_URL, intent.getStringExtra(AndroidAlarmScheduler.EXTRA_MEETING_URL))
+            putExtra(AlertActivity.EXTRA_START,       start)
+            putExtra(AlertActivity.EXTRA_LOCATION,    location)
+            putExtra(AlertActivity.EXTRA_MEETING_URL, meetingUrl)
         }
 
-        val fullScreenPi = PendingIntent.getActivity(
-            context, eventId.toInt(), alertIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
+        // Always post the notification — guarantees delivery when screen is locked/off
+        // and provides action buttons as fallback.
+        // AlertActivity.onCreate() cancels this notification immediately on launch,
+        // so there is no visible double-alert.
+        postHeadsUpNotification(context, eventId, title, start, location, meetingUrl, alertIntent)
 
+        // Additionally, if overlay permission is granted, launch the Activity directly.
+        // SYSTEM_ALERT_WINDOW exempts from BAL restrictions (Android 10+), so the
+        // full-screen AlertActivity appears even when the phone is unlocked.
+        if (Settings.canDrawOverlays(context)) {
+            context.startActivity(alertIntent)
+        }
+    }
+
+    // ─── Option B helpers ─────────────────────────────────────────────────────
+
+    private fun postHeadsUpNotification(
+        context: Context,
+        eventId: Long,
+        title: String,
+        start: Long,
+        location: String?,
+        meetingUrl: String?,
+        alertIntent: Intent,
+    ) {
         val nm = context.getSystemService(NotificationManager::class.java)
 
         nm.createNotificationChannel(
             NotificationChannel(
-                CHANNEL_ID, "Meeting Alerts",
+                CHANNEL_ID, context.getString(R.string.notif_channel_alerts_name),
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
-                description          = "Full-screen alerts for upcoming meetings"
+                description          = context.getString(R.string.notif_channel_alerts_desc)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 setBypassDnd(true)
             }
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        // Tapping the notification body opens AlertActivity
+        val fullScreenPi = PendingIntent.getActivity(
+            context, eventId.toInt(), alertIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val bodyText = buildString {
+            append(context.getString(R.string.notif_body_starting_now))
+            if (!location.isNullOrBlank()) append("\n📍 $location")
+        }
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("⏰ $title")
-            .setContentText("Your meeting is starting now")
+            .setContentText(bodyText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bodyText))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setAutoCancel(true)
+            .setOngoing(true)           // stays visible until user acts
+            .setAutoCancel(false)
             .setFullScreenIntent(fullScreenPi, /* highPriority = */ true)
-            .build()
+            .setContentIntent(fullScreenPi)
 
-        nm.notify(eventId.toInt(), notification)
+        // ── Join action (only when meeting URL is available) ─────────────────
+        if (meetingUrl != null) {
+            val joinPi = PendingIntent.getActivity(
+                context,
+                (eventId + JOIN_REQUEST_OFFSET).toInt(),
+                Intent(Intent.ACTION_VIEW, Uri.parse(meetingUrl))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            builder.addAction(android.R.drawable.ic_menu_call, context.getString(R.string.notif_action_join), joinPi)
+        }
+
+        // ── Snooze 5 min action ──────────────────────────────────────────────
+        val snoozeIntent = Intent(NotificationActionReceiver.ACTION_SNOOZE).apply {
+            setClass(context, NotificationActionReceiver::class.java)
+            putExtra(AndroidAlarmScheduler.EXTRA_EVENT_ID,    eventId)
+            putExtra(AndroidAlarmScheduler.EXTRA_TITLE,       title)
+            putExtra(AndroidAlarmScheduler.EXTRA_START,       start)
+            putExtra(AndroidAlarmScheduler.EXTRA_LOCATION,    location)
+            putExtra(AndroidAlarmScheduler.EXTRA_MEETING_URL, meetingUrl)
+        }
+        builder.addAction(
+            android.R.drawable.ic_popup_sync,
+            context.getString(R.string.notif_action_snooze),
+            PendingIntent.getBroadcast(
+                context,
+                (eventId + SNOOZE_REQUEST_OFFSET).toInt(),
+                snoozeIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        )
+
+        // ── Dismiss action ───────────────────────────────────────────────────
+        val dismissIntent = Intent(NotificationActionReceiver.ACTION_DISMISS).apply {
+            setClass(context, NotificationActionReceiver::class.java)
+            putExtra(AndroidAlarmScheduler.EXTRA_EVENT_ID, eventId)
+        }
+        builder.addAction(
+            android.R.drawable.ic_delete,
+            context.getString(R.string.notif_action_dismiss),
+            PendingIntent.getBroadcast(
+                context,
+                (eventId + DISMISS_REQUEST_OFFSET).toInt(),
+                dismissIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        )
+
+        nm.notify(eventId.toInt(), builder.build())
     }
 
     companion object {
         const val CHANNEL_ID = "wakeywakey_alerts"
+        private const val JOIN_REQUEST_OFFSET    = 200_000
+        private const val SNOOZE_REQUEST_OFFSET  = 300_000
+        private const val DISMISS_REQUEST_OFFSET = 400_000
     }
 }

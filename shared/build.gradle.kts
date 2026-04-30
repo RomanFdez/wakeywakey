@@ -42,7 +42,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.koin.android)
-            implementation(libs.revenuecat)
+            implementation(libs.revenuecat.kmp)
             implementation(libs.sentry.android)
             implementation(libs.posthog.android) // AnalyticsProvider (androidMain) usa PostHog SDK
         }

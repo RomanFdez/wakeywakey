@@ -3,8 +3,11 @@ package com.sierraespada.wakeywakey
 import android.app.Application
 import com.posthog.android.PostHogAndroid
 import com.posthog.android.PostHogAndroidConfig
+import com.revenuecat.purchases.kmp.Purchases
+import com.revenuecat.purchases.kmp.PurchasesConfiguration
 import com.sierraespada.wakeywakey.analytics.AnalyticsProvider
 import com.sierraespada.wakeywakey.analytics.Event
+import com.sierraespada.wakeywakey.billing.EntitlementManager
 
 class WakeyWakeyApp : Application() {
 
@@ -32,5 +35,16 @@ class WakeyWakeyApp : Application() {
 
         // Primer evento — confirma que la pipeline funciona end-to-end
         AnalyticsProvider.instance.track(Event.APP_OPENED)
+
+        // RevenueCat — inicializar SDK y cargar estado de entitlement + trial
+        if (BuildConfig.REVENUECAT_API_KEY.isNotBlank()) {
+            Purchases.configure(
+                PurchasesConfiguration(
+                    apiKey = BuildConfig.REVENUECAT_API_KEY,
+                )
+            )
+        }
+        // init() calcula trial de app Y carga estado RevenueCat
+        EntitlementManager.init(this)
     }
 }

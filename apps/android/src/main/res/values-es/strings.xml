@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App -->
+    <string name="widget_description">Muestra tu próxima reunión del día</string>
+
+    <!-- Alert screen -->
+    <string name="alert_join_now">Unirse ahora</string>
+    <string name="alert_snooze_label">Posponer</string>
+    <string name="alert_snooze_1min">1 min</string>
+    <string name="alert_snooze_at_start">Al inicio (+%dm)</string>
+    <string name="alert_snooze_custom">Personalizar…</string>
+    <string name="alert_slide_to_dismiss">desliza para cerrar  ›</string>
+    <string name="alert_starts_in_ms">Empieza en %1$dm %2$ds</string>
+    <string name="alert_starts_in_s">Empieza en %ds</string>
+    <string name="alert_starting_now">¡Empezando AHORA!</string>
+    <string name="alert_started_ago">Empezó hace %dm</string>
+    <string name="alert_snooze_dialog_title">Posponer…</string>
+    <string name="alert_snooze_type_minutes">o escribe los minutos…</string>
+    <string name="alert_snooze_confirm">Posponer %dm</string>
+    <string name="alert_cancel">Cancelar</string>
+
+    <!-- Home screen -->
+    <string name="home_later_today">Más tarde hoy</string>
+    <string name="home_join_now">Unirse ahora →</string>
+    <string name="home_event_ongoing">● En curso</string>
+    <string name="home_event_in_minutes">en %dm</string>
+    <string name="home_no_events">Sin reuniones hoy</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_back">← Volver</string>
+    <string name="settings_section_alert_display">Pantalla de alerta</string>
+    <string name="settings_overlay_title">Mostrar sobre otras apps</string>
+    <string name="settings_overlay_granted">Las alertas se abren a pantalla completa aunque el teléfono esté desbloqueado.</string>
+    <string name="settings_overlay_not_granted">Concede este permiso para mostrar alertas a pantalla completa mientras usas otras apps.</string>
+    <string name="settings_overlay_allow">Permitir</string>
+    <string name="settings_section_general">General</string>
+    <string name="settings_alert_time_label">Tiempo de aviso antes de la reunión</string>
+    <string name="settings_sound">Sonido</string>
+    <string name="settings_repeat_sound">Repetir sonido hasta cerrar</string>
+    <string name="settings_vibration">Vibración</string>
+    <string name="settings_section_events">Eventos</string>
+    <string name="settings_filter_video_only">Solo videollamadas</string>
+    <string name="settings_filter_accepted_only">Solo eventos aceptados</string>
+    <string name="settings_show_all_day">Mostrar eventos de todo el día</string>
+    <string name="settings_work_hours">Solo en horario laboral</string>
+    <string name="settings_work_hours_from">De</string>
+    <string name="settings_work_hours_to">a</string>
+    <string name="settings_section_calendars">Calendarios</string>
+    <string name="settings_calendars_hint">Sin selección = todos los calendarios activos.</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">Hazte Pro</string>
+    <string name="paywall_subtitle">Saca el máximo partido a tus reuniones</string>
+    <string name="paywall_feature_alert_time">Tiempo de aviso personalizable</string>
+    <string name="paywall_feature_calendars">Filtrado de calendarios</string>
+    <string name="paywall_feature_work_hours">Horario laboral</string>
+    <string name="paywall_feature_widget">Widget en el escritorio</string>
+    <string name="paywall_feature_tile">Acceso rápido (Quick Tile)</string>
+    <string name="paywall_feature_snooze">Posponer personalizado</string>
+    <string name="paywall_plan_monthly">Mensual</string>
+    <string name="paywall_plan_annual">Anual</string>
+    <string name="paywall_plan_lifetime">De por vida</string>
+    <string name="paywall_badge_best_value">Mejor opción</string>
+    <string name="paywall_badge_trial">7 días gratis</string>
+    <string name="paywall_badge_one_time">Único pago</string>
+    <string name="paywall_cta_trial">Prueba gratis 7 días</string>
+    <string name="paywall_cta_buy">Comprar ahora</string>
+    <string name="paywall_restore">Restaurar compra</string>
+    <string name="paywall_cancel_anytime">Cancela cuando quieras</string>
+    <string name="paywall_pro_badge">PRO</string>
+    <string name="paywall_trial_expired">Tu prueba gratuita ha finalizado. Suscríbete ahora y obtén 7 días más gratis antes del primer cobro.</string>
+    <string name="paywall_trial_days_left">Te quedan %d días de prueba gratuita</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_alerts_name">Alertas de reunión</string>
+    <string name="notif_channel_alerts_desc">Alertas a pantalla completa para reuniones</string>
+    <string name="notif_body_starting_now">Tu reunión está empezando</string>
+    <string name="notif_action_join">Unirse</string>
+    <string name="notif_action_snooze">Posponer 5m</string>
+    <string name="notif_action_dismiss">Cerrar</string>
+    <string name="notif_channel_service_name">WakeyWakey activo</string>
+    <string name="notif_channel_service_desc">Mantiene las alertas de reuniones activas</string>
+    <string name="notif_service_text">Alertas de reuniones activas</string>
+    <string name="notif_fallback_meeting_title">Reunión</string>
+</resources>

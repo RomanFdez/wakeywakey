@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.kotlin.serialization)
 
     id("io.sentry.android.gradle") version "6.5.0"
 }
@@ -28,9 +29,10 @@ android {
         versionName   = "0.1.0"
 
         // Secrets inyectados como BuildConfig — nunca hardcodeados en el código
-        buildConfigField("String", "SENTRY_DSN",       "\"${secret("SENTRY_DSN")}\"")
-        buildConfigField("String", "POSTHOG_API_KEY",  "\"${secret("POSTHOG_API_KEY")}\"")
-        buildConfigField("String", "POSTHOG_HOST",     "\"${secret("POSTHOG_HOST").ifEmpty { "https://eu.i.posthog.com" }}\"")
+        buildConfigField("String", "SENTRY_DSN",           "\"${secret("SENTRY_DSN")}\"")
+        buildConfigField("String", "POSTHOG_API_KEY",      "\"${secret("POSTHOG_API_KEY")}\"")
+        buildConfigField("String", "POSTHOG_HOST",         "\"${secret("POSTHOG_HOST").ifEmpty { "https://eu.i.posthog.com" }}\"")
+        buildConfigField("String", "REVENUECAT_API_KEY",   "\"${secret("REVENUECAT_API_KEY")}\"")
     }
 
     buildTypes {
@@ -61,6 +63,30 @@ android {
     }
 }
 
+sentry {
+    // Sentry sigue funcionando en runtime (crash reporting).
+    // Solo desactivamos los uploads de artefactos — no tienen sentido sin auth token.
+    autoUploadProguardMapping = false
+    uploadNativeSymbols       = false
+    autoUploadNativeSymbols   = false
+    includeNativeSources      = false
+    ignoredBuildTypes         = setOf("debug")
+}
+
+// Desactiva cualquier tarea de Sentry que intente subir algo a sus servidores.
+// Se reactivarán en CI añadiendo SENTRY_AUTH_TOKEN a los secrets del repo.
+afterEvaluate {
+    val hasToken = secret("SENTRY_AUTH_TOKEN").isNotEmpty()
+    if (!hasToken) {
+        tasks.matching { task ->
+            task.name.startsWith("sentry", ignoreCase = true) &&
+            (task.name.contains("Upload", ignoreCase = true) ||
+             task.name.contains("Bundle", ignoreCase = true) ||
+             task.name.contains("Source", ignoreCase = true))
+        }.configureEach { enabled = false }
+    }
+}
+
 dependencies {
     implementation(project(":shared"))
 
@@ -69,6 +95,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material3:material3-window-size-class")
     implementation(libs.activity.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
@@ -82,6 +109,22 @@ dependencies {
 
     // Notificaciones + alarmas
     implementation("androidx.core:core-ktx:1.13.1")
+
+    // Serialization (for ManualAlert JSON storage)
+    implementation(libs.kotlinx.serialization.json)
+
+    // Settings persistence
+    implementation(libs.datastore.preferences)
+
+    // Background sync
+    implementation(libs.work.runtime.ktx)
+
+    // Home widget (Glance)
+    implementation(libs.glance.appwidget)
+    implementation(libs.glance.material3)
+
+    // Monetización — RevenueCat KMP
+    implementation(libs.revenuecat.kmp)
 }
 
 

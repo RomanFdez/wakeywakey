@@ -13,15 +13,15 @@ class AndroidAlarmScheduler(private val context: Context) : AlarmScheduler {
         context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     override fun schedule(event: CalendarEvent, minutesBefore: Int) {
+        val now       = System.currentTimeMillis()
         val triggerAt = event.startTime - minutesBefore * 60_000L
-        if (triggerAt <= System.currentTimeMillis()) return // ya pasó
+        if (triggerAt <= now) return // ya pasó
 
         val pending = buildPendingIntent(event) ?: return
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             !alarmManager.canScheduleExactAlarms()
         ) {
-            // Sin permiso de alarma exacta — usamos inexacta como fallback
             alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pending)
             return
         }

@@ -38,6 +38,7 @@ class AndroidCalendarRepository(private val context: Context) : CalendarReposito
             CalendarContract.Instances.DESCRIPTION,
             CalendarContract.Instances.CALENDAR_ID,
             CalendarContract.Instances.ALL_DAY,
+            CalendarContract.Instances.SELF_ATTENDEE_STATUS,
         )
 
         // Only filter ALL_DAY here — time range is already in the URI.
@@ -48,14 +49,15 @@ class AndroidCalendarRepository(private val context: Context) : CalendarReposito
         context.contentResolver
             .query(uri, projection, selection, null, "${CalendarContract.Instances.BEGIN} ASC")
             ?.use { cursor ->
-                val colId       = cursor.getColumnIndexOrThrow(CalendarContract.Instances.EVENT_ID)
-                val colTitle    = cursor.getColumnIndexOrThrow(CalendarContract.Instances.TITLE)
-                val colStart    = cursor.getColumnIndexOrThrow(CalendarContract.Instances.BEGIN)
-                val colEnd      = cursor.getColumnIndexOrThrow(CalendarContract.Instances.END)
-                val colLocation = cursor.getColumnIndexOrThrow(CalendarContract.Instances.EVENT_LOCATION)
-                val colDesc     = cursor.getColumnIndexOrThrow(CalendarContract.Instances.DESCRIPTION)
-                val colCalId    = cursor.getColumnIndexOrThrow(CalendarContract.Instances.CALENDAR_ID)
-                val colAllDay   = cursor.getColumnIndexOrThrow(CalendarContract.Instances.ALL_DAY)
+                val colId             = cursor.getColumnIndexOrThrow(CalendarContract.Instances.EVENT_ID)
+                val colTitle          = cursor.getColumnIndexOrThrow(CalendarContract.Instances.TITLE)
+                val colStart          = cursor.getColumnIndexOrThrow(CalendarContract.Instances.BEGIN)
+                val colEnd            = cursor.getColumnIndexOrThrow(CalendarContract.Instances.END)
+                val colLocation       = cursor.getColumnIndexOrThrow(CalendarContract.Instances.EVENT_LOCATION)
+                val colDesc           = cursor.getColumnIndexOrThrow(CalendarContract.Instances.DESCRIPTION)
+                val colCalId          = cursor.getColumnIndexOrThrow(CalendarContract.Instances.CALENDAR_ID)
+                val colAllDay         = cursor.getColumnIndexOrThrow(CalendarContract.Instances.ALL_DAY)
+                val colAttendeeStatus = cursor.getColumnIndexOrThrow(CalendarContract.Instances.SELF_ATTENDEE_STATUS)
 
                 while (cursor.moveToNext()) {
                     val calId = cursor.getLong(colCalId)
@@ -63,16 +65,17 @@ class AndroidCalendarRepository(private val context: Context) : CalendarReposito
                     val loc   = cursor.getString(colLocation)
 
                     events += CalendarEvent(
-                        id           = cursor.getLong(colId),
-                        title        = cursor.getString(colTitle) ?: "No title",
-                        startTime    = cursor.getLong(colStart),
-                        endTime      = cursor.getLong(colEnd),
-                        location     = loc,
-                        description  = desc,
-                        calendarId   = calId,
-                        calendarName = calendarNames[calId] ?: "",
-                        meetingLink  = MeetingLinkDetector.extractFromEvent(desc, loc),
-                        isAllDay     = cursor.getInt(colAllDay) == 1,
+                        id                 = cursor.getLong(colId),
+                        title              = cursor.getString(colTitle) ?: "No title",
+                        startTime          = cursor.getLong(colStart),
+                        endTime            = cursor.getLong(colEnd),
+                        location           = loc,
+                        description        = desc,
+                        calendarId         = calId,
+                        calendarName       = calendarNames[calId] ?: "",
+                        meetingLink        = MeetingLinkDetector.extractFromEvent(desc, loc),
+                        isAllDay           = cursor.getInt(colAllDay) == 1,
+                        selfAttendeeStatus = cursor.getInt(colAttendeeStatus),
                     )
                 }
             }
@@ -102,6 +105,35 @@ class AndroidCalendarRepository(private val context: Context) : CalendarReposito
                             color       = cursor.getInt(3),
                             isVisible   = cursor.getInt(4) == 1,
                         )
+                    }
+                }
+            result
+        }
+
+    suspend fun getAttendees(eventId: Long): List<String> =
+        withContext(Dispatchers.IO) {
+            val result     = mutableListOf<String>()
+            val projection = arrayOf(
+                CalendarContract.Attendees.ATTENDEE_NAME,
+                CalendarContract.Attendees.ATTENDEE_EMAIL,
+            )
+            context.contentResolver
+                .query(
+                    CalendarContract.Attendees.CONTENT_URI,
+                    projection,
+                    "${CalendarContract.Attendees.EVENT_ID} = ?",
+                    arrayOf(eventId.toString()),
+                    null,
+                )
+                ?.use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val name  = cursor.getString(0)
+                        val email = cursor.getString(1)
+                        result += when {
+                            !name.isNullOrBlank()  -> name
+                            !email.isNullOrBlank() -> email
+                            else                   -> continue
+                        }
                     }
                 }
             result
