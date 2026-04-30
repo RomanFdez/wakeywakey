@@ -37,9 +37,8 @@ compose.desktop {
 
             windows {
                 menuGroup   = "WakeyWakey"
-                // TODO: generar UUID real con uuidgen
-                upgradeUuid = "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
-                iconFile.set(project.file("src/main/resources/icon.ico"))
+                upgradeUuid = "1EF21982-0C82-4462-9C32-E0BD8369C7BE"
+                // iconFile.set(project.file("src/main/resources/icon.ico"))  // TODO: añadir icon.ico antes del release
             }
         }
     }
