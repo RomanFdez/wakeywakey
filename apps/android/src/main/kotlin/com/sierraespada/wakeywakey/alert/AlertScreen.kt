@@ -90,6 +90,7 @@ fun AlertScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier            = Modifier
+                .widthIn(max = 480.dp)   // cap width on tablet/landscape
                 .fillMaxWidth()
                 .padding(horizontal = 32.dp),
         ) {

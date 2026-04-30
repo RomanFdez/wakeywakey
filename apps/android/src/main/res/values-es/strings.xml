@@ -25,6 +25,7 @@
     <string name="home_event_ongoing">● En curso</string>
     <string name="home_event_in_minutes">en %dm</string>
     <string name="home_no_events">Sin reuniones hoy</string>
+    <string name="home_tablet_no_selection">Pulsa una reunión\npara ver los detalles</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Ajustes</string>

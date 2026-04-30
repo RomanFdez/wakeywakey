@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -18,6 +19,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -30,6 +32,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sierraespada.wakeywakey.R
 import com.sierraespada.wakeywakey.billing.EntitlementManager
+import com.sierraespada.wakeywakey.calendar.AndroidCalendarRepository
+import com.sierraespada.wakeywakey.manualert.ManualAlert
 import com.sierraespada.wakeywakey.model.CalendarEvent
 import com.sierraespada.wakeywakey.scheduler.AndroidAlarmScheduler
 import java.text.SimpleDateFormat
@@ -124,10 +128,11 @@ fun HomeScreen(
                     ) {
                         Text("🎉", fontSize = 48.sp)
                         Text(
-                            "Sin reuniones hoy",
+                            stringResource(R.string.home_tablet_no_selection),
                             fontSize   = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color      = Color.White.copy(alpha = 0.4f),
+                            textAlign  = TextAlign.Center,
                         )
                     }
                 }
@@ -652,6 +657,228 @@ private fun EventRow(event: CalendarEvent, nowMillis: Long = System.currentTimeM
             }
         }
     }
+}
+
+// ─── Tablet detail panel ─────────────────────────────────────────────────────
+// Inline version of EventDetailSheet — shown permanently in the right panel on
+// tablet (WindowWidthSizeClass.Expanded). No BottomSheet wrapper needed.
+
+@Composable
+fun TabletDetailPanel(
+    event:     CalendarEvent,
+    nowMillis: Long,
+    onDelete:  ((Long) -> Unit)? = null,
+) {
+    val context   = LocalContext.current
+    val scope     = rememberCoroutineScope()
+    val isManual  = event.calendarId == ManualAlert.MANUAL_CALENDAR_ID
+
+    var attendees by remember(event.id) { mutableStateOf<List<String>>(emptyList()) }
+    var loading   by remember(event.id) { mutableStateOf(!isManual) }
+
+    LaunchedEffect(event.id) {
+        if (!isManual) {
+            loading = true
+            attendees = runCatching {
+                AndroidCalendarRepository(context).getAttendees(event.id)
+            }.getOrDefault(emptyList())
+            loading = false
+        }
+    }
+
+    val dateFmt = remember { SimpleDateFormat("EEE, MMM d · HH:mm", Locale.ENGLISH) }
+    val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+
+    val minutesLeft = ((event.startTime - nowMillis) / 60_000L).toInt()
+    val isOngoing   = minutesLeft < 0
+    val accentColor = when {
+        isOngoing      -> Green
+        minutesLeft <= 5 -> Coral
+        else           -> Yellow
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 32.dp, vertical = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+
+        // ── Calendar badge ────────────────────────────────────────────────
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = if (isManual) Coral.copy(alpha = 0.15f) else accentColor.copy(alpha = 0.13f),
+        ) {
+            Text(
+                text     = if (isManual) "Manual alert" else event.calendarName,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color    = if (isManual) Coral else accentColor,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
+
+        // ── Title ─────────────────────────────────────────────────────────
+        Text(
+            text       = event.title,
+            fontSize   = 26.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color      = Color.White,
+            lineHeight = 32.sp,
+        )
+
+        // ── Countdown ─────────────────────────────────────────────────────
+        Text(
+            text       = countdownLabel(event.startTime, nowMillis),
+            fontSize   = 42.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color      = accentColor,
+        )
+
+        HorizontalDivider(color = Color.White.copy(alpha = 0.07f))
+
+        // ── Time ──────────────────────────────────────────────────────────
+        TabletDetailRow(
+            emoji = "🕐",
+            text  = buildString {
+                append(dateFmt.format(Date(event.startTime)))
+                if (event.endTime > event.startTime) {
+                    append(" – ")
+                    append(timeFmt.format(Date(event.endTime)))
+                }
+            }
+        )
+
+        // ── Location ──────────────────────────────────────────────────────
+        if (!event.location.isNullOrBlank() && event.meetingLink == null) {
+            TabletDetailRow("📍", event.location!!)
+        }
+
+        // ── Meeting link ──────────────────────────────────────────────────
+        if (event.meetingLink != null) {
+            TabletDetailRow("🔗", event.meetingLink!!)
+        }
+
+        // ── Notes ─────────────────────────────────────────────────────────
+        if (!event.description.isNullOrBlank()) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                TabletSectionLabel("Notes")
+                Text(
+                    text       = event.description!!,
+                    fontSize   = 14.sp,
+                    color      = Color.White.copy(alpha = 0.7f),
+                    lineHeight = 21.sp,
+                )
+            }
+        }
+
+        // ── Attendees (calendar events only) ─────────────────────────────
+        if (!isManual) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                TabletSectionLabel("Attendees")
+                when {
+                    loading -> CircularProgressIndicator(
+                        modifier    = Modifier.size(20.dp),
+                        color       = Yellow,
+                        strokeWidth = 2.dp,
+                    )
+                    attendees.isEmpty() -> Text(
+                        "No attendee info available.",
+                        fontSize = 13.sp,
+                        color    = Color.White.copy(alpha = 0.35f),
+                    )
+                    else -> attendees.forEach { name ->
+                        Row(
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Box(
+                                modifier         = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(Yellow.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text       = name.first().uppercaseChar().toString(),
+                                    fontSize   = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color      = Yellow,
+                                )
+                            }
+                            Text(name, fontSize = 14.sp, color = Color.White.copy(alpha = 0.85f))
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Join button ───────────────────────────────────────────────────
+        if (event.meetingLink != null) {
+            Button(
+                onClick  = {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(event.meetingLink))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape    = RoundedCornerShape(14.dp),
+                colors   = ButtonDefaults.buttonColors(
+                    containerColor = accentColor,
+                    contentColor   = Navy,
+                ),
+            ) {
+                Text(
+                    stringResource(R.string.home_join_now),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize   = 16.sp,
+                )
+            }
+        }
+
+        // ── Delete (manual alerts only) ───────────────────────────────────
+        if (isManual && onDelete != null) {
+            OutlinedButton(
+                onClick  = { onDelete(event.id) },
+                modifier = Modifier.fillMaxWidth(),
+                shape    = RoundedCornerShape(12.dp),
+                colors   = ButtonDefaults.outlinedButtonColors(contentColor = Coral),
+                border   = androidx.compose.foundation.BorderStroke(1.dp, Coral.copy(alpha = 0.5f)),
+            ) {
+                Text("Delete alert", fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabletDetailRow(emoji: String, text: String) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment     = Alignment.Top,
+    ) {
+        Text(emoji, fontSize = 16.sp)
+        Text(
+            text       = text,
+            fontSize   = 14.sp,
+            color      = Color.White.copy(alpha = 0.75f),
+            lineHeight = 20.sp,
+            modifier   = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun TabletSectionLabel(text: String) {
+    Text(
+        text          = text.uppercase(),
+        fontSize      = 11.sp,
+        fontWeight    = FontWeight.Bold,
+        color         = Yellow.copy(alpha = 0.6f),
+        letterSpacing = 1.sp,
+    )
 }
 
 // ─── Chip ─────────────────────────────────────────────────────────────────────

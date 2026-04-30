@@ -27,6 +27,7 @@
     <string name="home_event_ongoing">● Ongoing</string>
     <string name="home_event_in_minutes">in %dm</string>
     <string name="home_no_events">No meetings today</string>
+    <string name="home_tablet_no_selection">Tap a meeting\nto see details</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>

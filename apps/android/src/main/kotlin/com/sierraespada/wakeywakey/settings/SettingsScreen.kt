@@ -36,6 +36,7 @@ private val NavySurface = Color(0xFF16213E)
 fun SettingsScreen(
     onBack: () -> Unit,
     onShowPaywall: () -> Unit = {},
+    isTablet: Boolean = false,
     vm: SettingsViewModel = viewModel(),
 ) {
     val isPro by EntitlementManager.isPro.collectAsState()
@@ -52,17 +53,29 @@ fun SettingsScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
+    // On tablet: centre content with a max width of 600 dp
+    val horizontalPadding = if (isTablet) 0.dp else 20.dp
+    val contentModifier   = if (isTablet) {
+        Modifier
+            .widthIn(max = 600.dp)
+            .fillMaxHeight()
+    } else {
+        Modifier.fillMaxSize()
+    }
+
+    Box(
+        modifier         = Modifier
             .fillMaxSize()
             .background(Navy)
             .systemBarsPadding(),
+        contentAlignment = if (isTablet) Alignment.TopCenter else Alignment.TopStart,
     ) {
+    Column(modifier = contentModifier) {
         // ── Top bar ───────────────────────────────────────────────────────
         Row(
             modifier          = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = if (isTablet) 24.dp else 20.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(onClick = onBack) {
@@ -80,7 +93,11 @@ fun SettingsScreen(
         }
 
         LazyColumn(
-            contentPadding      = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
+            contentPadding      = PaddingValues(
+                start  = if (isTablet) 24.dp else 20.dp,
+                end    = if (isTablet) 24.dp else 20.dp,
+                bottom = 32.dp,
+            ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // ── ALERT DISPLAY ─────────────────────────────────────────────
@@ -217,9 +234,10 @@ fun SettingsScreen(
                     }
                 }
             }
-        }
-    }
-}
+        } // end LazyColumn
+    } // end inner Column
+    } // end Box
+} // end SettingsScreen
 
 // ─── Reusable components ──────────────────────────────────────────────────────
 
