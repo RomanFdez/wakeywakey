@@ -7,8 +7,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-// Versión inyectable desde CI: ./gradlew packageMsi -PappVersion=1.2.3
-// Si no se pasa, usa el valor por defecto.
 val appVersion: String = (project.findProperty("appVersion") as String?) ?: "0.1.0"
 
 kotlin {
@@ -27,7 +25,6 @@ kotlin {
                 implementation(compose.materialIconsExtended)
                 implementation(libs.kotlinx.coroutines.swing)
                 implementation(libs.kotlinx.serialization.json)
-                // HTTP client para OAuth + Calendar REST APIs
                 implementation(libs.ktor.client.cio)
                 implementation(libs.ktor.client.content.negotiation)
                 implementation(libs.ktor.serialization.json)
@@ -51,7 +48,6 @@ compose.desktop {
             windows {
                 menuGroup   = "WakeyWakey"
                 upgradeUuid = "1EF21982-0C82-4462-9C32-E0BD8369C7BE"
-                // iconFile.set(project.file("src/jvmMain/resources/icon.ico"))  // TODO antes del release
             }
         }
     }

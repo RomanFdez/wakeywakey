@@ -82,6 +82,22 @@ jobs:
       # ── Build MSI + EXE ────────────────────────────────────────────────────
       # La versión del tag se inyecta vía -PappVersion para que quede incrustada
       # en el MSI (campo ProductVersion) y en el nombre del instalador.
+      # Inyecta las credenciales OAuth en BuildConfig.kt antes de compilar.
+      # Así quedan compiladas en el binario sin exponerlas en el código fuente.
+      - name: Inject OAuth credentials into BuildConfig
+        shell: pwsh
+        env:
+          GID:    ${{ secrets.GOOGLE_CLIENT_ID }}
+          GSECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          MSID:   ${{ secrets.MICROSOFT_CLIENT_ID }}
+        run: |
+          $f = "apps/windows/src/jvmMain/kotlin/com/sierraespada/wakeywakey/windows/BuildConfig.kt"
+          (Get-Content $f) `
+            -replace 'GOOGLE_CLIENT_ID     = ""',     "GOOGLE_CLIENT_ID     = `"$env:GID`"" `
+            -replace 'GOOGLE_CLIENT_SECRET = ""',     "GOOGLE_CLIENT_SECRET = `"$env:GSECRET`"" `
+            -replace 'MICROSOFT_CLIENT_ID  = ""',     "MICROSOFT_CLIENT_ID  = `"$env:MSID`"" |
+          Set-Content $f
+
       - name: Build Windows installers
         run: ./gradlew :apps:windows:packageMsi :apps:windows:packageExe -PappVersion=${{ steps.version.outputs.name }}
 

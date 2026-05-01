@@ -1,5 +1,6 @@
 package com.sierraespada.wakeywakey.windows.calendar
 
+import com.sierraespada.wakeywakey.windows.BuildConfig
 import com.sierraespada.wakeywakey.calendar.CalendarRepository
 import com.sierraespada.wakeywakey.calendar.MeetingLinkDetector
 import com.sierraespada.wakeywakey.model.CalendarEvent
@@ -253,16 +254,19 @@ class MicrosoftCalendarRepository : CalendarRepository {
         private const val SCOPE =
             "offline_access Calendars.Read User.Read"
 
-        val clientId: String get() = credential("MICROSOFT_CLIENT_ID")
+        val clientId: String get() = credential("MICROSOFT_CLIENT_ID") {
+            BuildConfig.MICROSOFT_CLIENT_ID.takeIf { it.isNotBlank() }
+        }
 
         val isConfigured: Boolean
             get() = runCatching { clientId; true }.getOrElse { false }
 
-        private fun credential(key: String): String =
-            System.getenv(key)
+        private fun credential(key: String, fromBuildConfig: () -> String?): String =
+            fromBuildConfig()
+                ?: System.getenv(key)
                 ?: System.getProperty(key)
                 ?: loadConfigFile(key)
-                ?: error("$key not configured. Set env var or add to ~/.wakeywakey/config.properties")
+                ?: error("$key not configured.")
 
         private fun loadConfigFile(key: String): String? = runCatching {
             val file = java.io.File(System.getProperty("user.home"), ".wakeywakey/config.properties")

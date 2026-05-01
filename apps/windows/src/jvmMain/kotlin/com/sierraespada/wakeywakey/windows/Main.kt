@@ -6,15 +6,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.*
 import com.sierraespada.wakeywakey.windows.alert.AlertWindow
 import com.sierraespada.wakeywakey.windows.calendar.OnboardingWindow
@@ -33,58 +32,74 @@ val AppColorScheme = darkColorScheme(
     error        = Color(0xFFFF6B6B),
 )
 
-// ─── App icon — painter vectorial (resolución independiente) ──────────────────
+// ─── App icon — painter vectorial puro (sin TextMeasurer) ────────────────────
 
 /**
- * Crea un [Painter] que dibuja el icono de WakeyWakey usando Compose Canvas.
- * Al ser vectorial se renderiza nítido a cualquier escala y densidad de píxeles
- * (Retina 2×, 3×, monitores 4K, tray de macOS, barra de título de Windows, etc.)
- * sin ningún upscaling ni downscaling de bitmap.
+ * Painter resolution-independent que dibuja el icono de WakeyWakey con
+ * Compose Canvas paths — sin texto, sin fuentes, sin CompositionLocals.
  *
- * Debe llamarse dentro de un contexto @Composable porque necesita [rememberTextMeasurer].
+ * Funciona en CUALQUIER contexto: Tray, Window, AlertWindow, etc.
+ * La forma "WW" se dibuja como dos W geométricas mediante trazados Bézier.
  */
-@Composable
-internal fun rememberAppIconPainter(): Painter {
-    val textMeasurer = rememberTextMeasurer()
-    return remember(textMeasurer) {
-        object : Painter() {
-            // Sin tamaño intrínseco → el caller decide el tamaño (tray, ventana, etc.)
-            override val intrinsicSize = Size.Unspecified
+internal val AppIcon: Painter = object : Painter() {
+    override val intrinsicSize = Size.Unspecified
 
-            override fun DrawScope.onDraw() {
-                val d   = size.minDimension
-                val pad = d * 0.03f
+    override fun DrawScope.onDraw() {
+        val d   = size.minDimension
+        val cx  = size.width  / 2f
+        val cy  = size.height / 2f
+        val pad = d * 0.035f
 
-                // ── Círculo amarillo ──────────────────────────────────────────
-                drawCircle(
-                    color  = Color(0xFFFFE03A),
-                    radius = d / 2f - pad,
-                    center = Offset(size.width / 2f, size.height / 2f),
-                )
+        // ── Círculo amarillo ──────────────────────────────────────────────────
+        drawCircle(
+            color  = Color(0xFFFFE03A),
+            radius = d / 2f - pad,
+            center = Offset(cx, cy),
+        )
 
-                // ── "WW" en navy — tamaño proporcional al icono ───────────────
-                // toSp() usa la densidad del DrawScope (que implementa Density)
-                val fontSizeSp = (d * 0.33f).toSp()
-                val style = TextStyle(
-                    color         = Color(0xFF1A1A2E),
-                    fontWeight    = FontWeight.ExtraBold,
-                    fontSize      = fontSizeSp,
-                    letterSpacing = 0.sp,
-                )
-                val measured = textMeasurer.measure("WW", style)
-                drawText(
-                    textMeasurer = textMeasurer,
-                    text         = "WW",
-                    style        = style,
-                    topLeft      = Offset(
-                        x = (size.width  - measured.size.width)  / 2f,
-                        y = (size.height - measured.size.height) / 2f,
-                    ),
-                )
-            }
+        // ── Dos "W" como paths (navy) ─────────────────────────────────────────
+        // Cada W tiene 5 puntos: top-left, bottom-left, middle-top, bottom-right, top-right
+        val stroke = Stroke(
+            width = d * 0.065f,
+            cap   = StrokeCap.Round,
+            join  = StrokeJoin.Round,
+        )
+        val navy = Color(0xFF1A1A2E)
+        val wH   = d * 0.28f   // alto de la W
+        val wW   = d * 0.24f   // ancho de cada W
+        val gap  = d * 0.03f   // separación entre las dos W
+        val top  = cy - wH * 0.42f
+        val bot  = cy + wH * 0.58f
+        val mid  = cy + wH * 0.05f  // vértice central (un poco por encima del centro)
+
+        // W izquierda
+        val lLeft  = cx - wW - gap / 2f
+        val lMidX  = lLeft + wW / 2f
+        val lRight = cx - gap / 2f
+        val wPath1 = Path().apply {
+            moveTo(lLeft,  top); lineTo(lLeft  + wW * 0.25f, bot)
+            lineTo(lMidX,  mid); lineTo(lRight - wW * 0.25f, bot)
+            lineTo(lRight, top)
         }
+        drawPath(wPath1, navy, style = stroke)
+
+        // W derecha
+        val rLeft  = cx + gap / 2f
+        val rMidX  = rLeft + wW / 2f
+        val rRight = cx + wW + gap / 2f
+        val wPath2 = Path().apply {
+            moveTo(rLeft,  top); lineTo(rLeft  + wW * 0.25f, bot)
+            lineTo(rMidX,  mid); lineTo(rRight - wW * 0.25f, bot)
+            lineTo(rRight, top)
+        }
+        drawPath(wPath2, navy, style = stroke)
     }
 }
+
+// rememberAppIconPainter() devuelve el singleton vectorial.
+// Mantener la función para compatibilidad con OnboardingWindow que la llama.
+@Composable
+internal fun rememberAppIconPainter(): Painter = AppIcon
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
@@ -99,8 +114,7 @@ fun main() {
     application {
 
         val appState = remember { AppState() }
-        // Icono vectorial creado aquí (contexto @Composable) y compartido por todas las ventanas
-        val appIcon  = rememberAppIconPainter()
+        val appIcon  = AppIcon   // singleton vectorial, sin CompositionLocals
 
         LaunchedEffect(Unit) {
             WakeyWakeyApp.init()

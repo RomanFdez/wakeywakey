@@ -1,5 +1,6 @@
 package com.sierraespada.wakeywakey.windows.calendar
 
+import com.sierraespada.wakeywakey.windows.BuildConfig
 import com.sierraespada.wakeywakey.calendar.CalendarRepository
 import com.sierraespada.wakeywakey.calendar.MeetingLinkDetector
 import com.sierraespada.wakeywakey.model.CalendarEvent
@@ -245,17 +246,24 @@ class GoogleCalendarRepository : CalendarRepository {
         private const val CALLBACK_PORT = 8765
         private const val SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
 
-        val clientId: String get() = credential("GOOGLE_CLIENT_ID")
-        val clientSecret: String get() = credential("GOOGLE_CLIENT_SECRET")
+        // Prioridad: BuildConfig (compilado en el binario por CI) →
+        //            variable de entorno → propiedad de sistema → config file local
+        val clientId: String get() = credential("GOOGLE_CLIENT_ID") {
+            BuildConfig.GOOGLE_CLIENT_ID.takeIf { it.isNotBlank() }
+        }
+        val clientSecret: String get() = credential("GOOGLE_CLIENT_SECRET") {
+            BuildConfig.GOOGLE_CLIENT_SECRET.takeIf { it.isNotBlank() }
+        }
 
         val isConfigured: Boolean
             get() = runCatching { clientId; clientSecret; true }.getOrElse { false }
 
-        private fun credential(key: String): String =
-            System.getenv(key)
+        private fun credential(key: String, fromBuildConfig: () -> String?): String =
+            fromBuildConfig()
+                ?: System.getenv(key)
                 ?: System.getProperty(key)
                 ?: loadConfigFile(key)
-                ?: error("$key not configured. Set env var or add to ~/.wakeywakey/config.properties")
+                ?: error("$key not configured.")
 
         private fun loadConfigFile(key: String): String? = runCatching {
             val file = java.io.File(System.getProperty("user.home"), ".wakeywakey/config.properties")
