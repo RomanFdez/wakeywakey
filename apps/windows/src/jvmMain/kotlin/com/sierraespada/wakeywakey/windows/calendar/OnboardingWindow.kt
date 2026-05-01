@@ -16,12 +16,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.rememberWindowState
-import com.sierraespada.wakeywakey.windows.AppIcon
+import com.sierraespada.wakeywakey.windows.rememberAppIconPainter
 import kotlinx.coroutines.launch
 
 // ─── Colores locales ──────────────────────────────────────────────────────────
@@ -48,11 +49,12 @@ fun OnboardingWindow(
     onConnected: () -> Unit,
     onDismiss:   () -> Unit,
 ) {
+    val appIcon = rememberAppIconPainter()
     Window(
         onCloseRequest = onDismiss,
         state          = rememberWindowState(size = DpSize(460.dp, 520.dp)),
         title          = "WakeyWakey — Connect Calendar",
-        icon           = AppIcon,
+        icon           = appIcon,
         resizable      = false,
     ) {
         OnboardingContent(

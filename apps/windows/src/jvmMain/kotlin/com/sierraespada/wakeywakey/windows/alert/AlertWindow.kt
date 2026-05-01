@@ -1,14 +1,14 @@
 package com.sierraespada.wakeywakey.windows.alert
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.window.*
 import com.sierraespada.wakeywakey.model.CalendarEvent
-import com.sierraespada.wakeywakey.windows.AppIcon
 import java.awt.Desktop
 import java.net.URI
 
 /**
- * Ventana de alerta full-screen para Windows.
+ * Ventana de alerta full-screen para Windows / macOS.
  *
  * Características:
  *  - `alwaysOnTop = true`  — aparece sobre cualquier otra ventana
@@ -16,12 +16,14 @@ import java.net.URI
  *  - `WindowPlacement.Fullscreen` — cubre toda la pantalla (igual que "In Your Face")
  *  - `focusable = true`    — captura el foco al aparecer
  *
- * Se lanza desde AppState.pendingAlert y se cierra al hacer dismiss/snooze.
+ * El [icon] se pasa desde Main.kt para reutilizar el painter vectorial
+ * creado en el contexto @Composable de application {}.
  */
 @Composable
 fun AlertWindow(
-    event:    CalendarEvent,
-    onSnooze: (Long) -> Unit,
+    event:     CalendarEvent,
+    icon:      Painter,
+    onSnooze:  (Long) -> Unit,
     onDismiss: () -> Unit,
 ) {
     Window(
@@ -32,7 +34,7 @@ fun AlertWindow(
         focusable      = true,
         resizable      = false,
         title          = "WakeyWakey",
-        icon           = AppIcon,
+        icon           = icon,
     ) {
         DesktopAlertScreen(
             title      = event.title,
