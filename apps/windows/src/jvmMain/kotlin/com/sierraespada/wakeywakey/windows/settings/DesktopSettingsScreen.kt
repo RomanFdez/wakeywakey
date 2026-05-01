@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -265,17 +266,25 @@ private fun ToggleRow(
             Text(subtitle, color = Subtitle, fontSize = 12.sp, lineHeight = 16.sp)
         }
         Spacer(Modifier.width(12.dp))
-        Switch(
-            checked         = checked,
-            onCheckedChange = onToggle,
-            colors          = SwitchDefaults.colors(
-                checkedThumbColor       = Navy,
-                checkedTrackColor       = Yellow,
-                uncheckedThumbColor     = Subtitle,
-                uncheckedTrackColor     = Surface2,
-                uncheckedBorderColor    = Surface2,
-            ),
-        )
+        // Switch más fino para desktop: el M3 Switch mide ~52×32dp, lo escalamos
+        // al 68% → ~35×22dp, tamaño cómodo en pantallas de escritorio.
+        Box(
+            modifier         = Modifier.size(36.dp, 22.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Switch(
+                checked         = checked,
+                onCheckedChange = onToggle,
+                modifier        = Modifier.scale(0.68f),
+                colors          = SwitchDefaults.colors(
+                    checkedThumbColor    = Navy,
+                    checkedTrackColor    = Yellow,
+                    uncheckedThumbColor  = Subtitle,
+                    uncheckedTrackColor  = Surface2,
+                    uncheckedBorderColor = Surface2,
+                ),
+            )
+        }
     }
 }
 

@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.DpSize
@@ -33,30 +34,48 @@ val AppColorScheme = darkColorScheme(
 // ─── App icon ─────────────────────────────────────────────────────────────────
 
 /**
- * Icono 256×256 generado programáticamente.
- * Reemplazar por un .ico real antes del release.
+ * Icono generado a 512×512px para soportar pantallas Retina/HiDPI (2×).
+ * En displays 1× se muestra a 256dp; en 2× ocupa 512px físicos sin upscaling.
+ *
+ * FilterQuality.High activa interpolación bicúbica si hay downscaling
+ * (p.ej. tray de macOS ~22dp → 44px en Retina).
+ *
+ * Reemplazar por un .ico / .icns real antes del release.
  */
 internal val AppIcon: BitmapPainter by lazy {
-    val size = 256
+    val size = 512
     val img  = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
     val g    = img.createGraphics()
-    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-    // Fondo amarillo
+    // ── Máxima calidad de renderizado AWT ────────────────────────────────────
+    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,       RenderingHints.VALUE_ANTIALIAS_ON)
+    g.setRenderingHint(RenderingHints.KEY_RENDERING,          RenderingHints.VALUE_RENDER_QUALITY)
+    g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,  RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+    g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,  RenderingHints.VALUE_FRACTIONALMETRICS_ON)
+    g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,      RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+    // ── Círculo amarillo ─────────────────────────────────────────────────────
     g.color = AwtColor(0xFF, 0xE0, 0x3A)
-    g.fillOval(4, 4, size - 8, size - 8)
-    // Texto "WW" en navy
+    g.fillOval(8, 8, size - 16, size - 16)
+    // ── "WW" en navy ─────────────────────────────────────────────────────────
     g.color = AwtColor(0x1A, 0x1A, 0x2E)
-    g.font  = Font(Font.SANS_SERIF, Font.BOLD, 88)
+    g.font  = Font(Font.SANS_SERIF, Font.BOLD, 176)
     val fm  = g.fontMetrics
     val lbl = "WW"
     g.drawString(lbl, (size - fm.stringWidth(lbl)) / 2, size / 2 + fm.ascent / 3)
     g.dispose()
-    BitmapPainter(img.toComposeImageBitmap())
+    BitmapPainter(img.toComposeImageBitmap(), filterQuality = FilterQuality.High)
 }
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
-fun main() = application {
+fun main() {
+    // Activa el renderizado Metal en macOS (más rápido y mejor subpixel AA que OpenGL)
+    System.setProperty("skiko.renderApi", "METAL")
+    // Integra la app con el aspecto del sistema (dark/light mode de macOS)
+    System.setProperty("apple.awt.application.appearance", "system")
+    // Nombre en la barra de menú de macOS
+    System.setProperty("apple.awt.application.name", "WakeyWakey")
+
+    application {
 
     val appState = remember { AppState() }
 
@@ -150,4 +169,6 @@ fun main() = application {
             )
         }
     }
-}
+
+    } // end application
+} // end main
