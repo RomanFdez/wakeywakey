@@ -3,7 +3,12 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'   # ej. v1.0.0
+      - 'v*.*.*'   # ej. v1.2.3
+
+# Sólo un release a la vez para evitar carreras
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
 
@@ -22,6 +27,11 @@ jobs:
           java-version: 17
 
       - uses: gradle/actions/setup-gradle@v3
+
+      # Extrae versión del tag (v1.2.3 → 1.2.3)
+      - name: Extract version
+        id: version
+        run: echo "name=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
       # Reconstruir el keystore desde el secret base64
       - name: Decode keystore
@@ -43,7 +53,12 @@ jobs:
           path: apps/android/build/outputs/bundle/release/*.aab
 
   # ─────────────────────────────────────────
-  # 2. Release Windows — MSI + EXE (requiere runner Windows)
+  # 2. Release Windows — MSI + EXE con code signing
+  #
+  #    Secrets necesarios (opcionales para signing):
+  #      WINDOWS_CERTIFICATE_BASE64  — certificado .pfx en base64
+  #      WINDOWS_CERTIFICATE_PASSWORD — contraseña del .pfx
+  #      WINDOWS_CERTIFICATE_THUMBPRINT — thumbprint SHA1 (alternativa)
   # ─────────────────────────────────────────
   release-windows:
     name: Release Windows (MSI + EXE)
@@ -58,19 +73,117 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v3
 
-      - name: Build Windows installer
-        run: ./gradlew :apps:windows:packageMsi :apps:windows:packageExe
+      # ── Extrae versión del tag ──────────────────────────────────────────────
+      - name: Extract version
+        id: version
+        shell: bash
+        run: echo "name=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
-      - name: Upload installers
+      # ── Build MSI + EXE ────────────────────────────────────────────────────
+      # La versión del tag se inyecta vía -PappVersion para que quede incrustada
+      # en el MSI (campo ProductVersion) y en el nombre del instalador.
+      - name: Build Windows installers
+        run: ./gradlew :apps:windows:packageMsi :apps:windows:packageExe -PappVersion=${{ steps.version.outputs.name }}
+
+      # ── Code signing (sólo si el certificado está configurado) ─────────────
+      #
+      # Para configurarlo:
+      #  1. Exportar tu certificado como .pfx (con clave privada)
+      #  2. base64 -i certificate.pfx | pbcopy
+      #  3. Añadir WINDOWS_CERTIFICATE_BASE64 y WINDOWS_CERTIFICATE_PASSWORD
+      #     en GitHub → Settings → Secrets → Actions
+      #
+      # Si los secrets no están presentes, este paso se omite y los
+      # instaladores se publican sin firmar (Windows mostrará SmartScreen).
+      - name: Decode certificate
+        if: secrets.WINDOWS_CERTIFICATE_BASE64 != ''
+        shell: pwsh
+        env:
+          CERT_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+        run: |
+          $bytes = [Convert]::FromBase64String($env:CERT_BASE64)
+          [IO.File]::WriteAllBytes("$env:TEMP\ww_cert.pfx", $bytes)
+          Write-Host "Certificate decoded"
+
+      - name: Import certificate to store
+        if: secrets.WINDOWS_CERTIFICATE_BASE64 != ''
+        shell: pwsh
+        env:
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $pfxPath  = "$env:TEMP\ww_cert.pfx"
+          $secPwd   = ConvertTo-SecureString $env:CERT_PASSWORD -AsPlainText -Force
+          $cert     = Import-PfxCertificate -FilePath $pfxPath `
+                        -CertStoreLocation Cert:\CurrentUser\My `
+                        -Password $secPwd
+          # Exporta el thumbprint para el siguiente paso
+          "CERT_THUMBPRINT=$($cert.Thumbprint)" | Out-File $env:GITHUB_ENV -Append
+          Write-Host "Imported certificate: $($cert.Subject)"
+
+      - name: Sign MSI and EXE
+        if: secrets.WINDOWS_CERTIFICATE_BASE64 != ''
+        shell: pwsh
+        env:
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          # signtool está en el Windows SDK, pre-instalado en windows-latest
+          $signtool = (Get-ChildItem -Recurse -ErrorAction SilentlyContinue `
+            "C:\Program Files (x86)\Windows Kits\10\bin" -Filter "signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1).FullName
+
+          if (-not $signtool) { throw "signtool.exe not found" }
+
+          $params = @(
+            "sign",
+            "/sha1",    "$env:CERT_THUMBPRINT",
+            "/tr",      "http://timestamp.digicert.com",   # TSA RFC 3161
+            "/td",      "sha256",
+            "/fd",      "sha256",
+            "/v"
+          )
+
+          # Firma MSI
+          $msiFiles = Get-ChildItem "apps/windows/build/compose/binaries/main/msi/*.msi"
+          foreach ($f in $msiFiles) {
+            Write-Host "Signing $($f.FullName)"
+            & $signtool @params $f.FullName
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed for $f" }
+          }
+
+          # Firma EXE
+          $exeFiles = Get-ChildItem "apps/windows/build/compose/binaries/main/exe/*.exe"
+          foreach ($f in $exeFiles) {
+            Write-Host "Signing $($f.FullName)"
+            & $signtool @params $f.FullName
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed for $f" }
+          }
+
+      # ── Limpia certificado de disco ────────────────────────────────────────
+      - name: Cleanup certificate
+        if: always() && secrets.WINDOWS_CERTIFICATE_BASE64 != ''
+        shell: pwsh
+        run: |
+          Remove-Item -Force -ErrorAction SilentlyContinue "$env:TEMP\ww_cert.pfx"
+          if ($env:CERT_THUMBPRINT) {
+            Remove-Item -Force -ErrorAction SilentlyContinue `
+              "Cert:\CurrentUser\My\$env:CERT_THUMBPRINT"
+          }
+
+      # ── Upload installers ──────────────────────────────────────────────────
+      - name: Upload MSI
         uses: actions/upload-artifact@v4
         with:
-          name: windows-installer-${{ github.ref_name }}
-          path: |
-            apps/windows/build/compose/binaries/main/msi/*.msi
-            apps/windows/build/compose/binaries/main/exe/*.exe
+          name: WakeyWakey-${{ github.ref_name }}-windows.msi
+          path: apps/windows/build/compose/binaries/main/msi/*.msi
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: WakeyWakey-${{ github.ref_name }}-windows-setup.exe
+          path: apps/windows/build/compose/binaries/main/exe/*.exe
 
   # ─────────────────────────────────────────
-  # 3. Crear GitHub Release con los artefactos
+  # 3. Crear GitHub Release con todos los artefactos
   # ─────────────────────────────────────────
   create-github-release:
     name: GitHub Release
@@ -80,14 +193,24 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # necesario para generate_release_notes
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: release-artifacts
+          merge-multiple: true
 
-      - name: Create release
+      - name: List artifacts
+        run: find release-artifacts -type f | sort
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: release-artifacts/**/*
+          fail_on_unmatched_files: false
+          files: |
+            release-artifacts/*.aab
+            release-artifacts/*.msi
+            release-artifacts/*.exe

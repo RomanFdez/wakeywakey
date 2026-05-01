@@ -7,10 +7,15 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Versión inyectable desde CI: ./gradlew packageMsi -PappVersion=1.2.3
+// Si no se pasa, usa el valor por defecto.
+val appVersion: String = (project.findProperty("appVersion") as String?) ?: "0.1.0"
+
 kotlin {
     jvm {
-        compilations.all { kotlinOptions.jvmTarget = "17" }
-        withJava()
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
 
     sourceSets {
@@ -38,7 +43,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName    = "WakeyWakey"
-            packageVersion = "0.1.0"
+            packageVersion = appVersion
             description    = "Full-screen meeting alerts you can't miss"
             vendor         = "SierraEspada"
             copyright      = "© 2026 SierraEspada"
@@ -46,7 +51,7 @@ compose.desktop {
             windows {
                 menuGroup   = "WakeyWakey"
                 upgradeUuid = "1EF21982-0C82-4462-9C32-E0BD8369C7BE"
-                // iconFile.set(project.file("src/main/resources/icon.ico"))  // TODO: añadir icon.ico antes del release
+                // iconFile.set(project.file("src/jvmMain/resources/icon.ico"))  // TODO antes del release
             }
         }
     }

@@ -92,11 +92,13 @@ jobs:
           retention-days: 14
 
   # ─────────────────────────────────────────
-  # 4. Build Windows (JAR — sin MSI en CI)
+  # 4. Build Windows — compila + empaqueta JAR
+  #    Requiere windows-latest porque packageUberJarForCurrentOS
+  #    embebe las librerías nativas del SO objetivo.
   # ─────────────────────────────────────────
   build-windows:
-    name: Build Windows (JAR)
-    runs-on: ubuntu-latest
+    name: Build Windows (uber JAR)
+    runs-on: windows-latest
     needs: [lint, test]
     steps:
       - uses: actions/checkout@v4
@@ -110,12 +112,14 @@ jobs:
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
-      - name: Build Windows JAR
-        run: ./gradlew :apps:windows:jar
+      # Compila todo el módulo Windows y empaqueta un JAR ejecutable.
+      # No genera MSI/EXE en CI (eso se hace en release.yml con signing).
+      - name: Compile & package uber JAR
+        run: ./gradlew :apps:windows:packageUberJarForCurrentOS
 
-      - name: Upload JAR
+      - name: Upload uber JAR
         uses: actions/upload-artifact@v4
         with:
-          name: windows-jar-${{ github.sha }}
-          path: apps/windows/build/libs/*.jar
+          name: windows-uberjar-${{ github.sha }}
+          path: apps/windows/build/compose/jars/*.jar
           retention-days: 14
