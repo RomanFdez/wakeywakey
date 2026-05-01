@@ -1,14 +1,8 @@
 package com.sierraespada.wakeywakey.windows
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.toComposeImageBitmap
@@ -18,6 +12,7 @@ import androidx.compose.ui.window.*
 import com.sierraespada.wakeywakey.windows.alert.AlertWindow
 import com.sierraespada.wakeywakey.windows.calendar.OnboardingWindow
 import com.sierraespada.wakeywakey.windows.home.HomeScreen
+import com.sierraespada.wakeywakey.windows.settings.DesktopSettingsScreen
 import java.awt.Font
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
@@ -122,16 +117,12 @@ fun main() = application {
             icon           = AppIcon,
         ) {
             MaterialTheme(colorScheme = AppColorScheme) {
-                // TODO Slice 5.3 — DesktopSettingsScreen
-                Box(
-                    modifier         = Modifier.fillMaxSize().background(Color(0xFF1A1A2E)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        "Settings coming soon",
-                        color = Color.White.copy(alpha = 0.4f),
-                    )
-                }
+                DesktopSettingsScreen(
+                    onConnectCalendar = {
+                        appState.showSettings  = false
+                        appState.showOnboarding = true
+                    },
+                )
             }
         }
     }
