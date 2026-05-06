@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -18,9 +19,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sierraespada.wakeywakey.model.UserSettings
+import com.sierraespada.wakeywakey.windows.PlatformMode
 import com.sierraespada.wakeywakey.windows.calendar.CalendarAccountManager
 
-// ─── Colores ──────────────────────────────────────────────────────────────────
+// ─── Paleta ──────────────────────────────────────────────────────────────────
 
 private val Yellow    = Color(0xFFFFE03A)
 private val Navy      = Color(0xFF1A1A2E)
@@ -30,226 +32,618 @@ private val White     = Color.White
 private val Danger    = Color(0xFFFF6B6B)
 private val Subtitle  = Color(0xFF8892AA)
 
-/**
- * Pantalla de ajustes del escritorio.
- *
- * Secciones:
- *  1. Cuenta de calendario — email conectado, cambiar/desconectar
- *  2. Alertas              — minutos antes
- *  3. Filtros              — solo video, solo aceptados, eventos de todo el día
- *  4. Sonido               — activar/desactivar, repetir
- *  5. Horario laboral      — habilitar, hora inicio/fin, días de la semana
- *  6. App                  — autostart al iniciar sesión
- */
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+
+private enum class SettingsTab(val label: String, val icon: ImageVector) {
+    CALENDAR("Calendar", Icons.Filled.CalendarMonth),
+    ALERTS  ("Alerts",   Icons.Filled.Alarm),
+    MENU_BAR("Menu Bar", Icons.Filled.Dvr),
+    APP     ("App",      Icons.Filled.Settings),
+}
+
+// ─── Root ─────────────────────────────────────────────────────────────────────
+
 @Composable
 fun DesktopSettingsScreen(
-    onConnectCalendar: () -> Unit,
+    onConnectCalendar:  () -> Unit,
+    appIcon:            Painter,
+    availableCalendars: List<Pair<Long, String>> = emptyList(),
+    platformMode:       PlatformMode             = PlatformMode.WINDOWS_OAUTH,
 ) {
-    val s        by DesktopSettingsRepository.settings.collectAsState()
-    val scrollState = rememberScrollState()
+    val s   by DesktopSettingsRepository.settings.collectAsState()
+    var tab by remember { mutableStateOf(SettingsTab.CALENDAR) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Navy),
-    ) {
+    Column(Modifier.fillMaxSize().background(Navy)) {
+
+        Text(
+            "Settings",
+            color      = Yellow,
+            fontSize   = 18.sp,
+            fontWeight = FontWeight.Bold,
+            modifier   = Modifier.padding(start = 18.dp, top = 12.dp, bottom = 2.dp),
+        )
+
+        TabRow(selectedTabIndex = tab.ordinal, containerColor = Navy, contentColor = Yellow) {
+            SettingsTab.entries.forEach { t ->
+                Tab(
+                    selected               = tab == t,
+                    onClick                = { tab = t },
+                    selectedContentColor   = Yellow,
+                    unselectedContentColor = Subtitle,
+                ) {
+                    Row(
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        modifier              = Modifier.padding(vertical = 10.dp),
+                    ) {
+                        Icon(t.icon, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Text(t.label, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+
+        // Tab content — scrollable para soportar muchos calendarios
+        val tabScroll = androidx.compose.foundation.rememberScrollState()
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(horizontal = 24.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .verticalScroll(tabScroll)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            // ── Header ────────────────────────────────────────────────────────
-            Text(
-                "Settings",
-                color      = Yellow,
-                fontSize   = 22.sp,
-                fontWeight = FontWeight.Bold,
-                modifier   = Modifier.padding(bottom = 4.dp),
-            )
-
-            // ── 1. Calendar account ───────────────────────────────────────────
-            SettingsSection(title = "Calendar account", icon = Icons.Filled.CalendarMonth) {
-                val email    by CalendarAccountManager.activeProvider.collectAsState()
-                val provider by CalendarAccountManager.activeProvider.collectAsState()
-
-                if (email != null) {
-                    ConnectedAccountRow(
-                        email    = CalendarAccountManager.connectedEmail ?: "",
-                        provider = provider ?: "",
-                        onDisconnect = {
-                            CalendarAccountManager.disconnect()
-                        },
-                        onReconnect = onConnectCalendar,
-                    )
-                } else {
-                    Row(
-                        modifier            = Modifier.fillMaxWidth(),
-                        verticalAlignment   = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            "No calendar connected",
-                            color    = Subtitle,
-                            fontSize = 14.sp,
-                        )
-                        Button(
-                            onClick = onConnectCalendar,
-                            colors  = ButtonDefaults.buttonColors(
-                                containerColor = Yellow,
-                                contentColor   = Navy,
-                            ),
-                            shape    = RoundedCornerShape(10.dp),
-                            modifier = Modifier.height(36.dp),
-                        ) {
-                            Text("Connect", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        }
-                    }
-                }
+            when (tab) {
+                SettingsTab.CALENDAR -> CalendarTab(s, onConnectCalendar, availableCalendars, platformMode)
+                SettingsTab.ALERTS   -> AlertsTab(s)
+                SettingsTab.MENU_BAR -> MenuBarTab(s, appIcon)
+                SettingsTab.APP      -> AppTab(s)
             }
-
-            // ── 2. Alerts ─────────────────────────────────────────────────────
-            SettingsSection(title = "Alert timing", icon = Icons.Filled.Alarm) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "Alert me this many minutes before each meeting:",
-                        color    = Subtitle,
-                        fontSize = 13.sp,
-                    )
-                    AlertMinutesSelector(
-                        current = s.alertMinutesBefore,
-                        onChange = { mins ->
-                            DesktopSettingsRepository.save(s.copy(alertMinutesBefore = mins))
-                        },
-                    )
-                }
-            }
-
-            // ── 3. Filters ────────────────────────────────────────────────────
-            SettingsSection(title = "Event filters", icon = Icons.Filled.FilterList) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    ToggleRow(
-                        label    = "Video meetings only",
-                        subtitle = "Skip events without a video link",
-                        checked  = s.filterVideoOnly,
-                        onToggle = { DesktopSettingsRepository.save(s.copy(filterVideoOnly = it)) },
-                    )
-                    HorizontalDivider(color = White.copy(alpha = 0.06f))
-                    ToggleRow(
-                        label    = "Accepted events only",
-                        subtitle = "Skip events you declined or haven't responded to",
-                        checked  = s.filterAcceptedOnly,
-                        onToggle = { DesktopSettingsRepository.save(s.copy(filterAcceptedOnly = it)) },
-                    )
-                    HorizontalDivider(color = White.copy(alpha = 0.06f))
-                    ToggleRow(
-                        label    = "Include all-day events",
-                        subtitle = "Show and alert for full-day events",
-                        checked  = s.showAllDayEvents,
-                        onToggle = { DesktopSettingsRepository.save(s.copy(showAllDayEvents = it)) },
-                    )
-                }
-            }
-
-            // ── 4. Sound ──────────────────────────────────────────────────────
-            SettingsSection(title = "Sound", icon = Icons.Filled.VolumeUp) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    ToggleRow(
-                        label    = "Sound alerts",
-                        subtitle = "Play a sound when an alert fires",
-                        checked  = s.soundEnabled,
-                        onToggle = { DesktopSettingsRepository.save(s.copy(soundEnabled = it)) },
-                    )
-                    if (s.soundEnabled) {
-                        HorizontalDivider(color = White.copy(alpha = 0.06f))
-                        ToggleRow(
-                            label    = "Repeat sound",
-                            subtitle = "Loop until you dismiss or snooze",
-                            checked  = s.repeatSound,
-                            onToggle = { DesktopSettingsRepository.save(s.copy(repeatSound = it)) },
-                        )
-                    }
-                }
-            }
-
-            // ── 5. Working hours ──────────────────────────────────────────────
-            SettingsSection(title = "Working hours", icon = Icons.Filled.Schedule) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ToggleRow(
-                        label    = "Working hours only",
-                        subtitle = "Silence alerts outside your work schedule",
-                        checked  = s.workHoursEnabled,
-                        onToggle = { DesktopSettingsRepository.save(s.copy(workHoursEnabled = it)) },
-                    )
-
-                    if (s.workHoursEnabled) {
-                        Spacer(Modifier.height(4.dp))
-                        WorkHoursEditor(s = s)
-                    }
-                }
-            }
-
-            // ── 6. App ────────────────────────────────────────────────────────
-            if (AutostartManager.isSupported) {
-                SettingsSection(title = "Application", icon = Icons.Filled.Settings) {
-                    var autostartOn by remember { mutableStateOf(AutostartManager.isEnabled) }
-
-                    ToggleRow(
-                        label    = "Launch at login",
-                        subtitle = "Start WakeyWakey automatically when you log in",
-                        checked  = autostartOn,
-                        onToggle = { enabled ->
-                            val result = if (enabled) AutostartManager.enable()
-                                         else         AutostartManager.disable()
-                            if (result.isSuccess) autostartOn = enabled
-                        },
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // ── Version footer ────────────────────────────────────────────────
+            Spacer(Modifier.height(4.dp))
             Text(
                 "WakeyWakey 0.1.0",
-                color    = White.copy(alpha = 0.2f),
-                fontSize = 11.sp,
+                color    = White.copy(alpha = 0.15f),
+                fontSize = 10.sp,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
     }
 }
 
-// ─── Sub-composables ──────────────────────────────────────────────────────────
+// ─── Tab: Calendar ────────────────────────────────────────────────────────────
 
 @Composable
-private fun SettingsSection(
-    title:   String,
-    icon:    ImageVector,
-    content: @Composable ColumnScope.() -> Unit,
+private fun CalendarTab(
+    s:                  UserSettings,
+    onConnectCalendar:  () -> Unit,
+    availableCalendars: List<Pair<Long, String>>,
+    platformMode:       PlatformMode,
 ) {
+    val provider    by CalendarAccountManager.activeProvider.collectAsState()
+    val isConnected  = provider != null
+    val isMacMode    = platformMode == PlatformMode.MAC_SYSTEM
+
+    // ── Modo macOS: fuente del sistema, sin OAuth ─────────────────────────────
+    if (isMacMode) {
+        Card {
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(Icons.Filled.CalendarMonth, null, tint = Yellow, modifier = Modifier.size(18.dp))
+                Column {
+                    Text("Using macOS system calendars", color = White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text("Google, iCloud, Exchange… all calendars from the macOS Calendar app", color = Subtitle, fontSize = 11.sp)
+                }
+            }
+        }
+    }
+
+    // ── Filtros ───────────────────────────────────────────────────────────────
+    Card {
+        SectionLabel("Event filters", Icons.Filled.FilterList)
+        ItemDivider()
+        CompactToggle("Video meetings only", s.filterVideoOnly) {
+            DesktopSettingsRepository.save(s.copy(filterVideoOnly = it))
+        }
+        ItemDivider()
+        CompactToggle("Accepted events only", s.filterAcceptedOnly) {
+            DesktopSettingsRepository.save(s.copy(filterAcceptedOnly = it))
+        }
+        ItemDivider()
+        CompactToggle("Include all-day events", s.showAllDayEvents) {
+            DesktopSettingsRepository.save(s.copy(showAllDayEvents = it))
+        }
+
+        if (availableCalendars.isNotEmpty()) {
+            ItemDivider()
+            SectionLabel("Calendars", Icons.Filled.CalendarViewMonth)
+            ItemDivider()
+            availableCalendars.forEachIndexed { idx, (calId, calName) ->
+                if (idx > 0) ItemDivider()
+                val enabled = s.enabledCalendarIds.isEmpty() || calId in s.enabledCalendarIds
+                CompactToggle(calName, enabled) { on ->
+                    val allIds  = availableCalendars.map { it.first }.toSet()
+                    val current = if (s.enabledCalendarIds.isEmpty()) allIds else s.enabledCalendarIds
+                    val newSet  = if (on) current + calId else current - calId
+                    val toSave  = if (newSet == allIds) emptySet() else newSet
+                    DesktopSettingsRepository.save(s.copy(enabledCalendarIds = toSave))
+                }
+            }
+        }
+    }
+
+    // ── Cuenta OAuth — solo en WINDOWS_OAUTH, y al final si ya está conectada ─
+    if (!isMacMode) {
+        if (isConnected) {
+            // Ya conectado → al fondo
+            Card {
+                SectionLabel("Calendar account", Icons.Filled.CalendarMonth)
+                ItemDivider()
+                ConnectedAccountRow(
+                    email        = CalendarAccountManager.connectedEmail ?: "",
+                    provider     = provider!!,
+                    onDisconnect = { CalendarAccountManager.disconnect() },
+                    onReconnect  = onConnectCalendar,
+                )
+            }
+        } else {
+            // Sin conectar → arriba con botón prominente
+            Card {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(Icons.Filled.CalendarMonth, null, tint = Subtitle, modifier = Modifier.size(16.dp))
+                        Text("No calendar connected", color = Subtitle, fontSize = 13.sp)
+                    }
+                    Button(
+                        onClick        = onConnectCalendar,
+                        colors         = ButtonDefaults.buttonColors(containerColor = Yellow, contentColor = Navy),
+                        shape          = RoundedCornerShape(8.dp),
+                        modifier       = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                    ) {
+                        Text("Connect", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── Tab: Alerts ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun AlertsTab(s: UserSettings) {
+
+    // ── Timing + Display — un solo bloque ─────────────────────────────────────
+    Card {
+        SectionLabel("Alert", Icons.Filled.Alarm)
+        ItemDivider()
+        // Minutos antes
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            listOf(1, 2, 5, 10, 15).forEach { min ->
+                val sel = s.alertMinutesBefore == min
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (sel) Yellow else Surface2)
+                        .clickable { DesktopSettingsRepository.save(s.copy(alertMinutesBefore = min)) }
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text       = "${min}m",
+                        color      = if (sel) Navy else White.copy(alpha = 0.7f),
+                        fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
+                        fontSize   = 12.sp,
+                        lineHeight = 12.sp,
+                        textAlign  = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
+            }
+        }
+        ItemDivider()
+        CompactToggle(
+            label    = "Alert on active screen only",
+            subtitle = "Off = show on all connected monitors",
+            checked  = !s.alertAllScreens,
+        ) { DesktopSettingsRepository.save(s.copy(alertAllScreens = !it)) }
+    }
+
+    // ── Sound ─────────────────────────────────────────────────────────────────
+    Card {
+        SectionLabel("Sound", Icons.Filled.VolumeUp)
+        ItemDivider()
+        CompactToggle("Sound alert", s.soundEnabled) {
+            DesktopSettingsRepository.save(s.copy(soundEnabled = it))
+        }
+        if (s.soundEnabled) {
+            ItemDivider()
+            SoundSelectorRow(s)
+            ItemDivider()
+            // Volume bar
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.VolumeDown, null, tint = Subtitle, modifier = Modifier.size(13.dp))
+                Slider(
+                    value         = s.alertVolume,
+                    onValueChange = { DesktopSettingsRepository.save(s.copy(alertVolume = it)) },
+                    valueRange    = 0f..1f,
+                    colors        = SliderDefaults.colors(
+                        thumbColor         = Yellow,
+                        activeTrackColor   = Yellow,
+                        inactiveTrackColor = Surface2,
+                    ),
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "${(s.alertVolume * 100).toInt()}%",
+                    color    = Subtitle,
+                    fontSize = 11.sp,
+                    modifier = Modifier.width(30.dp).padding(start = 4.dp),
+                )
+            }
+            ItemDivider()
+            CompactToggle("Loop sound", "Repeat until dismissed or snoozed", s.repeatSound) {
+                DesktopSettingsRepository.save(s.copy(repeatSound = it))
+            }
+        }
+    }
+
+    // ── Working hours ─────────────────────────────────────────────────────────
+    Card {
+        SectionLabel("Working hours", Icons.Filled.Schedule)
+        ItemDivider()
+        CompactToggle("Working hours only", "Silence alerts outside your work schedule", s.workHoursEnabled) {
+            DesktopSettingsRepository.save(s.copy(workHoursEnabled = it))
+        }
+        if (s.workHoursEnabled) {
+            ItemDivider()
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text("From", color = Subtitle, fontSize = 12.sp)
+                HourDropdown(s.workHoursStart) { DesktopSettingsRepository.save(s.copy(workHoursStart = it)) }
+                Text("to", color = Subtitle, fontSize = 12.sp)
+                HourDropdown(s.workHoursEnd) { DesktopSettingsRepository.save(s.copy(workHoursEnd = it)) }
+                Spacer(Modifier.weight(1f))
+                listOf(2 to "M", 3 to "T", 4 to "W", 5 to "T", 6 to "F", 7 to "S", 1 to "S")
+                    .forEach { (day, label) ->
+                        val sel = day in s.workDays
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp).clip(CircleShape)
+                                .background(if (sel) Yellow else Surface2)
+                                .clickable {
+                                    val nd = if (sel) s.workDays - day else s.workDays + day
+                                    DesktopSettingsRepository.save(s.copy(workDays = nd))
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text       = label,
+                                color      = if (sel) Navy else White.copy(alpha = 0.5f),
+                                fontWeight = FontWeight.Bold,
+                                fontSize   = 10.sp,
+                                lineHeight = 10.sp,   // elimina el padding vertical extra del font metrics
+                                textAlign  = androidx.compose.ui.text.style.TextAlign.Center,
+                            )
+                        }
+                    }
+            }
+        }
+    }
+}
+
+// ── Sound selector dropdown ────────────────────────────────────────────────────
+
+@Composable
+private fun SoundSelectorRow(s: UserSettings) {
+    val sounds     = com.sierraespada.wakeywakey.windows.SoundPlayer.SOUND_DEFS
+    val current    = sounds.firstOrNull { it.id == s.alertSoundId } ?: sounds[0]
+    var expanded   by remember { mutableStateOf(false) }
+    val previewJob = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+    Row(
+        modifier  = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text("Sound", color = White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+
+        Box {
+            // Selector button
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Surface2)
+                    .clickable { expanded = true }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(current.emoji, fontSize = 14.sp)
+                Text(current.label, color = Yellow, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Icon(Icons.Filled.ExpandMore, null, tint = Subtitle, modifier = Modifier.size(14.dp))
+            }
+
+            // Dropdown — compact items
+            DropdownMenu(
+                expanded         = expanded,
+                onDismissRequest = { expanded = false },
+                containerColor   = Surface2,
+            ) {
+                sounds.forEach { sound ->
+                    val selected = sound.id == s.alertSoundId
+                    DropdownMenuItem(
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        text = {
+                            Row(
+                                verticalAlignment     = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier              = Modifier.padding(vertical = 2.dp),
+                            ) {
+                                Text(sound.emoji, fontSize = 13.sp)
+                                Text(
+                                    sound.label,
+                                    color      = if (selected) Yellow else White,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    fontSize   = 12.sp,
+                                )
+                            }
+                        },
+                        onClick = {
+                            expanded = false
+                            DesktopSettingsRepository.save(s.copy(alertSoundId = sound.id))
+                            previewJob.value?.cancel()
+                            previewJob.value = com.sierraespada.wakeywakey.windows.SoundPlayer.play(
+                                sound.id, s.alertVolume, false,
+                            )
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ─── Tab: Menu Bar ────────────────────────────────────────────────────────────
+
+@Composable
+private fun MenuBarTab(s: UserSettings, appIcon: Painter) {
+
+    // Display options
+    Card {
+        SectionLabel("Display", Icons.Filled.Dvr)
+        ItemDivider()
+        CompactToggle("Show next meeting name", s.trayShowMeetingName) {
+            DesktopSettingsRepository.save(s.copy(trayShowMeetingName = it))
+        }
+        ItemDivider()
+        CompactToggle("Show time remaining", s.trayShowTimeRemaining) {
+            DesktopSettingsRepository.save(s.copy(trayShowTimeRemaining = it))
+        }
+        ItemDivider()
+        CompactToggle("Minutes only  (5m vs 5m 30s)", s.countdownMinutesOnly) {
+            DesktopSettingsRepository.save(s.copy(countdownMinutesOnly = it))
+        }
+        ItemDivider()
+        CompactToggle("Include tomorrow's meetings", s.trayIncludeTomorrow) {
+            DesktopSettingsRepository.save(s.copy(trayIncludeTomorrow = it))
+        }
+        ItemDivider()
+        // Title length inline
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Title length", color = White, fontSize = 13.sp, modifier = Modifier.width(90.dp))
+            Slider(
+                value         = s.trayTitleMaxLength.toFloat(),
+                onValueChange = { DesktopSettingsRepository.save(s.copy(trayTitleMaxLength = it.toInt())) },
+                valueRange    = 10f..50f,
+                steps         = 39,
+                colors        = SliderDefaults.colors(
+                    thumbColor         = Yellow,
+                    activeTrackColor   = Yellow,
+                    inactiveTrackColor = Surface2,
+                ),
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                "${s.trayTitleMaxLength}",
+                color    = Subtitle,
+                fontSize = 11.sp,
+                modifier = Modifier.width(26.dp).padding(start = 4.dp),
+            )
+        }
+        ItemDivider()
+        CompactToggle("Truncate in the middle", "e.g. \"Standup…sprint\" instead of \"Standup…\"", s.trayTitleTruncateMiddle) {
+            DesktopSettingsRepository.save(s.copy(trayTitleTruncateMiddle = it))
+        }
+    }
+
+    // Appearance + preview
+    Card {
+        SectionLabel("Appearance", Icons.Filled.Palette)
+        ItemDivider()
+        CompactToggle(
+            label    = "Monochrome icon",
+            subtitle = if (s.trayMonochromeIcon)
+                           "Color applies to icon + text"
+                       else
+                           "Icon is always yellow — color applies to text only",
+            checked  = s.trayMonochromeIcon,
+        ) {
+            DesktopSettingsRepository.save(s.copy(trayMonochromeIcon = it))
+        }
+        ItemDivider()
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                if (s.trayMonochromeIcon) "Color" else "Text",
+                color    = Subtitle,
+                fontSize = 12.sp,
+                modifier = Modifier.width(40.dp),
+            )
+            TrayColorPicker(current = s.trayAccentColor) {
+                DesktopSettingsRepository.save(s.copy(trayAccentColor = it))
+            }
+        }
+        ItemDivider()
+        // Preview
+        val accentColor  = accentPreviewColor(s.trayAccentColor)
+        // When NOT monochrome: icon is always yellow brand circle; text uses accentColor
+        // When monochrome: both icon circle and text use accentColor
+        val iconTintColor = if (s.trayMonochromeIcon) accentColor else Color(0xFFFFE03A)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFF0A0A1A))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        ) {
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                // Icon: tinted to accentColor when monochrome, normal when not
+                Box(
+                    modifier         = Modifier.size(22.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    androidx.compose.foundation.Image(
+                        painter            = appIcon,
+                        contentDescription = null,
+                        modifier           = Modifier.size(22.dp),
+                        colorFilter        = if (s.trayMonochromeIcon)
+                            androidx.compose.ui.graphics.ColorFilter.tint(iconTintColor)
+                        else null,
+                    )
+                }
+                if (s.trayShowMeetingName) {
+                    Text("Design Review", color = accentColor, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
+                if (s.trayShowTimeRemaining) {
+                    if (s.trayShowMeetingName) Text("·", color = accentColor.copy(alpha = 0.5f), fontSize = 13.sp)
+                    Text(
+                        if (s.countdownMinutesOnly) "12m" else "12m 30s",
+                        color      = accentColor,
+                        fontSize   = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                if (!s.trayShowMeetingName && !s.trayShowTimeRemaining) {
+                    Text("Icon only", color = Subtitle, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+private fun accentPreviewColor(id: String) = when (id) {
+    "red"    -> Color(0xFFFF3B30)
+    "yellow" -> Color(0xFFFFCC00)
+    "blue"   -> Color(0xFF007AFF)
+    "purple" -> Color(0xFFAF52DE)
+    "green"  -> Color(0xFF34C759)
+    "orange" -> Color(0xFFFF9500)
+    else     -> Color.White.copy(alpha = 0.85f)
+}
+
+// ─── Tab: App ─────────────────────────────────────────────────────────────────
+
+@Composable
+private fun AppTab(s: UserSettings) {
+    if (AutostartManager.isSupported) {
+        Card {
+            var autostartOn by remember { mutableStateOf(AutostartManager.isEnabled) }
+            CompactToggle("Launch at login", "Start WakeyWakey when you log in", autostartOn) { en ->
+                val result = if (en) AutostartManager.enable() else AutostartManager.disable()
+                if (result.isSuccess) autostartOn = en
+            }
+        }
+    } else {
+        Card {
+            Text("No application settings available on this platform.", color = Subtitle, fontSize = 13.sp)
+        }
+    }
+
+    // ── Developer ─────────────────────────────────────────────────────────────
+    Card {
+        SectionLabel("Developer", Icons.Filled.BugReport)
+        ItemDivider()
+        CompactToggle(
+            label    = "Modo DEV",
+            subtitle = "Muestra la barra de desarrollo en el popup del tray",
+            checked  = s.showDevBar,
+        ) { DesktopSettingsRepository.save(s.copy(showDevBar = it)) }
+    }
+}
+
+// ─── Shared building blocks ───────────────────────────────────────────────────
+
+/**
+ * Card contenedora de sección — fondo oscuro, esquinas redondeadas.
+ */
+@Composable
+private fun Card(content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(Surface)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+        content = content,
+    )
+}
+
+@Composable
+private fun SectionLabel(text: String, icon: ImageVector) {
+    Row(
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        modifier              = Modifier.padding(vertical = 2.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = Yellow, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(title, color = Yellow, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        }
-        content()
+        Icon(icon, contentDescription = null, tint = Yellow, modifier = Modifier.size(13.dp))
+        Text(text, color = Yellow, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
     }
 }
 
 @Composable
-private fun ToggleRow(
+private fun ItemDivider() {
+    HorizontalDivider(color = White.copy(alpha = 0.05f), modifier = Modifier.padding(vertical = 2.dp))
+}
+
+/**
+ * Toggle row compacto — sin subtítulo (overload simple).
+ */
+@Composable
+private fun CompactToggle(label: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
+    CompactToggle(label = label, subtitle = null, checked = checked, onToggle = onToggle)
+}
+
+/**
+ * Toggle row compacto — con subtítulo opcional.
+ */
+@Composable
+private fun CompactToggle(
     label:    String,
-    subtitle: String,
+    subtitle: String? = null,
     checked:  Boolean,
     onToggle: (Boolean) -> Unit,
 ) {
@@ -257,25 +651,22 @@ private fun ToggleRow(
         modifier              = Modifier
             .fillMaxWidth()
             .clickable { onToggle(!checked) }
-            .padding(vertical = 6.dp),
+            .padding(vertical = 4.dp),
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, color = White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text(subtitle, color = Subtitle, fontSize = 12.sp, lineHeight = 16.sp)
+            Text(label, color = White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            if (subtitle != null) {
+                Text(subtitle, color = Subtitle, fontSize = 11.sp, lineHeight = 14.sp)
+            }
         }
-        Spacer(Modifier.width(12.dp))
-        // Switch más fino para desktop: el M3 Switch mide ~52×32dp, lo escalamos
-        // al 68% → ~35×22dp, tamaño cómodo en pantallas de escritorio.
-        Box(
-            modifier         = Modifier.size(36.dp, 22.dp),
-            contentAlignment = Alignment.Center,
-        ) {
+        Spacer(Modifier.width(10.dp))
+        Box(modifier = Modifier.size(34.dp, 20.dp), contentAlignment = Alignment.Center) {
             Switch(
                 checked         = checked,
                 onCheckedChange = onToggle,
-                modifier        = Modifier.scale(0.68f),
+                modifier        = Modifier.scale(0.65f),
                 colors          = SwitchDefaults.colors(
                     checkedThumbColor    = Navy,
                     checkedTrackColor    = Yellow,
@@ -289,44 +680,31 @@ private fun ToggleRow(
 }
 
 @Composable
-private fun AlertMinutesSelector(current: Int, onChange: (Int) -> Unit) {
-    val options = listOf(1, 2, 5, 10, 15)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.forEach { min ->
-            val selected = current == min
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) Yellow else Surface2)
-                    .clickable { onChange(min) }
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    "${min}m",
-                    color      = if (selected) Navy else White.copy(alpha = 0.7f),
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    fontSize   = 14.sp,
-                )
-            }
-        }
+private fun SmallArrowButton(icon: ImageVector, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(Surface2)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = White.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
     }
 }
 
+// ─── ConnectedAccountRow ──────────────────────────────────────────────────────
+
 @Composable
 private fun ConnectedAccountRow(
-    email:       String,
-    provider:    String,
+    email:        String,
+    provider:     String,
     onDisconnect: () -> Unit,
     onReconnect:  () -> Unit,
 ) {
     var showConfirm by remember { mutableStateOf(false) }
 
-    Row(
-        modifier          = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Provider badge
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         val (badgeColor, badgeLabel) = when (provider) {
             "google"    -> Color(0xFF4285F4) to "G"
             "microsoft" -> Color(0xFF0078D4) to "M"
@@ -334,41 +712,28 @@ private fun ConnectedAccountRow(
         }
         Box(
             modifier         = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(badgeColor.copy(alpha = 0.2f))
-                .border(1.dp, badgeColor.copy(alpha = 0.5f), CircleShape),
+                .size(32.dp).clip(CircleShape)
+                .background(badgeColor.copy(alpha = 0.2f)),
             contentAlignment = Alignment.Center,
         ) {
-            Text(badgeLabel, color = badgeColor, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(badgeLabel, color = badgeColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 email.ifBlank { provider.replaceFirstChar { it.uppercase() } },
                 color      = White,
-                fontSize   = 14.sp,
+                fontSize   = 13.sp,
                 fontWeight = FontWeight.Medium,
             )
             Text(
-                when (provider) {
-                    "google"    -> "Google Calendar"
-                    "microsoft" -> "Microsoft Outlook"
-                    else        -> provider
-                },
+                when (provider) { "google" -> "Google Calendar"; "microsoft" -> "Outlook"; else -> provider },
                 color    = Subtitle,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
             )
         }
-        // Disconnect button
-        IconButton(
-            onClick = { showConfirm = true },
-        ) {
-            Icon(
-                imageVector        = Icons.Filled.LinkOff,
-                contentDescription = "Disconnect",
-                tint               = Danger.copy(alpha = 0.7f),
-            )
+        IconButton(onClick = { showConfirm = true }, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Filled.LinkOff, contentDescription = "Disconnect", tint = Danger.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
         }
     }
 
@@ -377,112 +742,73 @@ private fun ConnectedAccountRow(
             onDismissRequest = { showConfirm = false },
             containerColor   = Surface,
             title   = { Text("Disconnect calendar?", color = White) },
-            text    = {
-                Text(
-                    "WakeyWakey will stop receiving meeting alerts until you connect again.",
-                    color = Subtitle,
-                )
-            },
+            text    = { Text("WakeyWakey will stop alerting until you reconnect.", color = Subtitle) },
             confirmButton = {
-                TextButton(onClick = {
-                    showConfirm = false
-                    onDisconnect()
-                }) {
+                TextButton(onClick = { showConfirm = false; onDisconnect() }) {
                     Text("Disconnect", color = Danger, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirm = false }) {
-                    Text("Cancel", color = Yellow)
-                }
+                TextButton(onClick = { showConfirm = false }) { Text("Cancel", color = Yellow) }
             },
         )
     }
 }
 
-@Composable
-private fun WorkHoursEditor(s: UserSettings) {
-    // ── Time range ────────────────────────────────────────────────────────────
-    Row(
-        modifier          = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("From", color = Subtitle, fontSize = 13.sp)
-        HourDropdown(
-            hour     = s.workHoursStart,
-            onChange = { DesktopSettingsRepository.save(s.copy(workHoursStart = it)) },
-        )
-        Text("to", color = Subtitle, fontSize = 13.sp)
-        HourDropdown(
-            hour     = s.workHoursEnd,
-            onChange = { DesktopSettingsRepository.save(s.copy(workHoursEnd = it)) },
-        )
-    }
-
-    Spacer(Modifier.height(4.dp))
-
-    // ── Day picker ────────────────────────────────────────────────────────────
-    Text("Active days:", color = Subtitle, fontSize = 13.sp)
-    Spacer(Modifier.height(4.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        // Calendar constants: 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat 1=Sun
-        listOf(2 to "M", 3 to "T", 4 to "W", 5 to "T", 6 to "F", 7 to "S", 1 to "S")
-            .forEach { (day, label) ->
-                val selected = day in s.workDays
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(if (selected) Yellow else Surface2)
-                        .border(1.dp, if (selected) Yellow else Subtitle.copy(0.3f), CircleShape)
-                        .clickable {
-                            val newDays = if (selected) s.workDays - day else s.workDays + day
-                            DesktopSettingsRepository.save(s.copy(workDays = newDays))
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        label,
-                        color      = if (selected) Navy else White.copy(alpha = 0.5f),
-                        fontWeight = FontWeight.Bold,
-                        fontSize   = 13.sp,
-                    )
-                }
-            }
-    }
-}
+// ─── HourDropdown ─────────────────────────────────────────────────────────────
 
 @Composable
 private fun HourDropdown(hour: Int, onChange: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-
     Box {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(6.dp))
                 .background(Surface2)
                 .clickable { expanded = true }
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 10.dp, vertical = 5.dp),
         ) {
-            Text(
-                "%02d:00".format(hour),
-                color      = White,
-                fontSize   = 14.sp,
-                fontWeight = FontWeight.Medium,
-            )
+            Text("%02d:00".format(hour), color = White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
         }
-        DropdownMenu(
-            expanded         = expanded,
-            onDismissRequest = { expanded = false },
-            containerColor   = Surface2,
-        ) {
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, containerColor = Surface2) {
             (0..23).forEach { h ->
                 DropdownMenuItem(
-                    text    = { Text("%02d:00".format(h), color = if (h == hour) Yellow else White) },
+                    text    = { Text("%02d:00".format(h), color = if (h == hour) Yellow else White, fontSize = 12.sp) },
                     onClick = { onChange(h); expanded = false },
                 )
             }
+        }
+    }
+}
+
+// ─── TrayColorPicker ──────────────────────────────────────────────────────────
+
+@Composable
+private fun TrayColorPicker(current: String, onChange: (String) -> Unit) {
+    val options = listOf(
+        "system" to Color.White,
+        "yellow" to Color(0xFFFFCC00),
+        "red"    to Color(0xFFFF3B30),
+        "blue"   to Color(0xFF007AFF),
+        "green"  to Color(0xFF34C759),
+        "orange" to Color(0xFFFF9500),
+        "purple" to Color(0xFFAF52DE),
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { (id, color) ->
+            val selected = current == id
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(color)
+                    .border(
+                        width = if (selected) 2.dp else 0.dp,
+                        color = Yellow,
+                        shape = CircleShape,
+                    )
+                    .clickable { onChange(id) },
+            )
         }
     }
 }

@@ -302,17 +302,31 @@
 ---
 
 ### 🖥️ Fase 5 — Windows (6-8 semanas)
-1. **Port a Compose for Desktop** reutilizando `/shared`.
+> 🚧 **En curso — Slices 5.1–5.4 completados (2026-05-06).** Falta sync Supabase, publicación OAuth Google y pulido final.
+
+1. ~~**Port a Compose for Desktop** reutilizando `/shared`.~~ → ✅ **Slice 5.1 (app shell)**
 2. Diferencias clave Windows:
-   - Calendarios: integración con **Microsoft Graph API** (Outlook/365) + **Google Calendar API** directa (OAuth).
-   - Alerta full-screen: ventana topmost, borderless, que tapa el monitor donde está el ratón (igual que IYF).
-   - Icono en **system tray** con próximos eventos.
-   - Auto-start al iniciar Windows.
-3. **Distribución:**
-   - `.msix` para **Microsoft Store** (mejor confianza)
-   - Instalador `.exe` directo (mayor flexibilidad, mejor margen)
-   - Ambos firmados con cert de código (~$200/año EV).
-4. Sync de settings con la cuenta (Supabase).
+   - ~~Calendarios: integración con **Microsoft Graph API** (Outlook/365) + **Google Calendar API** directa (OAuth).~~ → ✅ **Slice 5.2**
+   - ~~Alerta full-screen: ventana topmost, borderless, que tapa el monitor donde está el ratón (igual que IYF).~~ → ✅ (`AlertWindow` + `DesktopAlertScreen`, sonido vía `SoundPlayer`)
+   - ~~Icono en **system tray** con próximos eventos.~~ → ✅ (`AwtTrayManager` + `tray/`)
+   - ~~Auto-start al iniciar Windows.~~ → ✅ **Slice 5.3**
+3. **Distribución:** → ✅ **Slice 5.4 (CI/CD MSI/EXE + code signing opcional)**
+   - `.msix` para **Microsoft Store** (mejor confianza) — pendiente publicación
+   - Instalador `.exe`/`.msi` directo (mayor flexibilidad, mejor margen) — pipeline listo
+   - Code signing configurable (cert opcional, ~$200/año EV cuando se compre).
+4. **Sync de settings con la cuenta (Supabase).** → ⏳ pendiente
+5. ⚠️ **Pendiente: Publicar app OAuth de Google** — actualmente en modo "Testing" (solo usuarios añadidos manualmente pueden autenticarse). Para distribución pública:
+   - Google Cloud Console → Google Auth Platform → Público → cambiar a "Producción"
+   - Enviar app a verificación de Google (requiere política de privacidad, dominio verificado, vídeo demo del flujo OAuth)
+   - Proceso puede tardar varios días/semanas
+   - Alternativa: mantener "Testing" durante beta interna (máx. 100 usuarios de prueba)
+6. **Pulido reciente (no commiteado aún, 2026-05-06):**
+   - Icono vectorial resolution-independent (Retina/HiDPI) + Metal renderer
+   - `BuildConfig` para credenciales (no hardcodeadas)
+   - `CustomEventsRepository` (alertas manuales en desktop)
+   - `SetupWizardWindow` (onboarding desktop)
+   - Switches más finos en Settings desktop
+7. **Asomo a macOS:** ya hay `MacSystemCalendarRepository` y `macos-entitlements.plist` — material para arrancar Fase macOS sin cambio de stack.
 
 ---
 
@@ -578,4 +592,4 @@ Opcional: versión web (PWA). Limitaciones (no puede mostrar fullscreen si pesta
 
 ---
 
-*Documento vivo. Última actualización: 2026-04-29.*
+*Documento vivo. Última actualización: 2026-05-06.*

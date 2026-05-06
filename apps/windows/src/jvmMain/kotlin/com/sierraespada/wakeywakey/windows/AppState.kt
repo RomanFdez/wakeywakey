@@ -4,6 +4,7 @@ import androidx.compose.runtime.*
 import com.sierraespada.wakeywakey.calendar.StubCalendarRepository
 import com.sierraespada.wakeywakey.model.CalendarEvent
 import com.sierraespada.wakeywakey.windows.calendar.CalendarAccountManager
+import com.sierraespada.wakeywakey.windows.calendar.MacSystemCalendarRepository
 import com.sierraespada.wakeywakey.windows.home.HomeViewModel
 import com.sierraespada.wakeywakey.windows.scheduler.DesktopScheduler
 import com.sierraespada.wakeywakey.windows.settings.DesktopSettingsRepository
@@ -11,55 +12,93 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+// ── Modo de plataforma ────────────────────────────────────────────────────────
+
+/**
+ * Controla qué backend de calendario se usa:
+ *  - WINDOWS_OAUTH → el usuario conecta Google/Microsoft (OAuth)
+ *  - MAC_SYSTEM    → se usa EventKit del sistema (calendarios nativos de macOS)
+ *
+ * En la barra de debug puede cambiarse para probar ambos modos en cualquier SO.
+ */
+enum class PlatformMode { WINDOWS_OAUTH, MAC_SYSTEM }
 
 /**
  * Estado global de la aplicación Windows.
  *
  * Gestiona:
- *  - Visibilidad de ventanas (home, settings, onboarding)
- *  - Alerta activa en curso
+ *  - Visibilidad de ventanas (home, settings, onboarding, trayPopup)
+ *  - Alerta activa en curso (real o preview)
  *  - Pause / resume del scheduler
  *  - Lifecycle del DesktopScheduler
  *  - Repositorio de calendario activo (Google | Microsoft | Stub)
+ *  - Modo de plataforma (Windows OAuth / macOS sistema) — conmutable en debug
  *
  * Se crea una sola vez en Main.kt con [remember] a nivel de application.
  */
 class AppState {
 
     // ── Scope de la aplicación ─────────────────────────────────────────────────
-    private val appScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    internal val appScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     // ── Ventanas ──────────────────────────────────────────────────────────────
-    var showHome        by mutableStateOf(true)
+    /** Wizard de primer arranque: se muestra si nunca se ha completado el setup. */
+    var showWizard      by mutableStateOf(!DesktopSettingsRepository.wizardCompleted)
+    var showHome        by mutableStateOf(false)
     var showSettings    by mutableStateOf(false)
+    /** Reconexión de calendario (desde Settings, no el wizard inicial). */
     var showOnboarding  by mutableStateOf(false)
+    var showTrayPopup   by mutableStateOf(false)
+    var trayClickX      by mutableStateOf(0)
 
     // ── Alerta activa ─────────────────────────────────────────────────────────
-    var pendingAlert by mutableStateOf<CalendarEvent?>(null)
+    var pendingAlert        by mutableStateOf<CalendarEvent?>(null)
+        private set
+    /** true cuando la alerta fue abierta manualmente (preview), no por el scheduler. */
+    var isPendingAlertPreview by mutableStateOf(false)
         private set
 
     // ── Pause ─────────────────────────────────────────────────────────────────
     val isPaused: Boolean
         get() = DesktopSettingsRepository.settings.value.isPaused
 
+    // ── Modo de plataforma ────────────────────────────────────────────────────
+    var platformMode by mutableStateOf(
+        if (System.getProperty("os.name").orEmpty().contains("Mac", ignoreCase = true))
+            PlatformMode.MAC_SYSTEM
+        else
+            PlatformMode.WINDOWS_OAUTH
+    )
+
     // ── Repositorio activo ────────────────────────────────────────────────────
 
     val isCalendarConnected: Boolean
         get() = CalendarAccountManager.isConnected
 
-    // Usa el repo activo si está disponible, si no el stub (evita null-safety en todo el código)
-    private val stub = StubCalendarRepository()
+    private val stub          = StubCalendarRepository()
+    private val macSystemRepo = MacSystemCalendarRepository()
 
     private val activeRepo
-        get() = CalendarAccountManager.activeRepo.value ?: stub
+        get() = when (platformMode) {
+            PlatformMode.MAC_SYSTEM    -> macSystemRepo
+            PlatformMode.WINDOWS_OAUTH -> CalendarAccountManager.activeRepo.value ?: stub
+        }
 
     // ── Scheduler + HomeViewModel ──────────────────────────────────────────────
 
     val scheduler = DesktopScheduler(
         calendarRepo = activeRepo,
-        onAlertFired = { event -> pendingAlert = event },
+        onAlertFired = { event ->
+            isPendingAlertPreview = false
+            pendingAlert = event
+        },
     )
 
     val homeVm = HomeViewModel(
@@ -69,16 +108,35 @@ class AppState {
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     fun start() {
-        // Cuando el usuario conecta/desconecta un calendario, refresca el scheduler
+        // WINDOWS_OAUTH: reacciona cuando el usuario conecta/cambia cuenta OAuth
         CalendarAccountManager.activeRepo
             .onEach { repo ->
-                if (repo != null) {
+                if (platformMode == PlatformMode.WINDOWS_OAUTH && repo != null) {
                     scheduler.updateRepo(repo)
                     homeVm.updateRepo(repo)
                     scheduler.syncNow()
                 }
             }
             .launchIn(appScope)
+
+        // Cambia de repo cuando el usuario alterna el modo de plataforma en debug.
+        // El primer valor emitido es el modo inicial — lo saltamos para no borrar
+        // los filtros de calendario guardados en cada arranque normal.
+        appScope.launch {
+            var isFirstEmission = true
+            snapshotFlow { platformMode }
+                .distinctUntilChanged()
+                .collect { mode ->
+                    if (isFirstEmission) { isFirstEmission = false; return@collect }
+                    val repo = when (mode) {
+                        PlatformMode.MAC_SYSTEM    -> macSystemRepo
+                        PlatformMode.WINDOWS_OAUTH -> CalendarAccountManager.activeRepo.value ?: stub
+                    }
+                    scheduler.updateRepo(repo)
+                    homeVm.switchRepo(repo)   // limpia filtros al cambiar de modo
+                    scheduler.syncNow()
+                }
+        }
 
         scheduler.start()
         homeVm.start()
@@ -90,16 +148,76 @@ class AppState {
         appScope.cancel()
     }
 
-    // ── Acciones ──────────────────────────────────────────────────────────────
+    // ── Acciones de alerta ────────────────────────────────────────────────────
 
     fun dismissAlert() {
         pendingAlert = null
+        isPendingAlertPreview = false
     }
 
     fun snoozeAlert(event: CalendarEvent, delayMs: Long) {
         pendingAlert = null
+        isPendingAlertPreview = false
         scheduler.snooze(event, delayMs)
     }
+
+    /**
+     * Abre la ventana de alerta en modo preview para un evento concreto
+     * (normalmente llamado desde el popup del tray o desde el debug bar).
+     */
+    fun previewAlert(event: CalendarEvent) {
+        showTrayPopup = false
+        isPendingAlertPreview = true
+        pendingAlert = event
+    }
+
+    // ── Debug helpers ─────────────────────────────────────────────────────────
+
+    /** Abre inmediatamente la pantalla de alerta con un evento falso. */
+    fun debugPreviewAlert() {
+        val now = System.currentTimeMillis()
+        previewAlert(
+            CalendarEvent(
+                id           = 999_998L,
+                title        = "Preview Meeting 👁",
+                startTime    = now + 2 * 60_000L,
+                endTime      = now + 32 * 60_000L,
+                location     = "Room 42",
+                description  = null,
+                calendarId   = 0L,
+                calendarName = "Debug",
+                meetingLink  = "https://meet.google.com/test",
+                isAllDay     = false,
+            )
+        )
+    }
+
+    /** Dispara la alerta con un evento falso en 5 segundos. */
+    fun debugAlarmIn5s() {
+        val now = System.currentTimeMillis()
+        val fakeEvent = CalendarEvent(
+            id           = 999_999L,
+            title        = "Test Meeting ⚡",
+            startTime    = now + 10_000L,          // "empieza" en 10 s
+            endTime      = now + 40 * 60_000L,
+            location     = null,
+            description  = null,
+            calendarId   = 0L,
+            calendarName = "Debug",
+            meetingLink  = "https://meet.google.com/test",
+            isAllDay     = false,
+        )
+        // El state de Compose debe mutarse en el hilo principal (EDT en Desktop)
+        appScope.launch {
+            delay(5_000L)
+            withContext(Dispatchers.Main) {
+                isPendingAlertPreview = false
+                pendingAlert = fakeEvent
+            }
+        }
+    }
+
+    // ── Acciones de UI ────────────────────────────────────────────────────────
 
     fun pauseOneHour() {
         val until = System.currentTimeMillis() + 60 * 60_000L
@@ -111,11 +229,25 @@ class AppState {
         scheduler.syncNow()
     }
 
+    /** Marca el wizard como completado, lo cierra y abre el popup del tray. */
+    fun completeWizard() {
+        DesktopSettingsRepository.setWizardCompleted()
+        showWizard = false
+        homeVm.refresh()
+        // Abre el popup directamente para que el usuario sepa que la app está en el tray
+        showTrayPopup = true
+    }
+
+    /** Reabre el wizard (para desarrollo/debug). */
+    fun resetWizard() {
+        // Solo borramos la flag en memoria; el usuario puede persistirlo desde debug
+        showWizard = true
+    }
+
     fun openHome() {
         showHome = true
     }
 
-    /** Llama a onboarding si no hay cuenta, refresca si ya hay. */
     fun requestCalendarConnect() {
         if (CalendarAccountManager.isConnected) {
             scheduler.syncNow()

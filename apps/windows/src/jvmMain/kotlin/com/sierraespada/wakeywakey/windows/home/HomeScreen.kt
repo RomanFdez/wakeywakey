@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sierraespada.wakeywakey.model.CalendarEvent
+import com.sierraespada.wakeywakey.windows.calendar.CalendarAccountManager
 import com.sierraespada.wakeywakey.windows.settings.DesktopSettingsRepository
 import java.awt.Desktop
 import java.net.URI
@@ -38,15 +39,14 @@ private val Green       = Color(0xFF4CAF50)
 
 @Composable
 fun HomeScreen(
-    vm: HomeViewModel,
-    onOpenSettings: () -> Unit = {},
+    vm:                HomeViewModel,
+    onOpenSettings:    () -> Unit = {},
     onConnectCalendar: () -> Unit = {},
 ) {
     val state by vm.uiState.collectAsState()
     var selectedEvent by remember { mutableStateOf<CalendarEvent?>(null) }
     val settings by DesktopSettingsRepository.settings.collectAsState()
 
-    // Two-panel layout: left list + right detail (desktop is always wide)
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -68,7 +68,10 @@ fun HomeScreen(
                 state.error != null ->
                     ErrorState(state.error!!) { vm.refresh() }
                 state.events.isEmpty() && !state.isLoading ->
-                    EmptyState(onConnectCalendar = onConnectCalendar)
+                    if (CalendarAccountManager.isConnected)
+                        NoMeetingsTodayState()
+                    else
+                        EmptyState(onConnectCalendar = onConnectCalendar)
                 else ->
                     EventList(
                         state      = state,
@@ -136,9 +139,9 @@ fun HomeScreen(
 
 @Composable
 private fun HomeHeader(
-    isPaused: Boolean,
+    isPaused:       Boolean,
     onOpenSettings: () -> Unit,
-    onRefresh: () -> Unit,
+    onRefresh:      () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -528,6 +531,31 @@ private fun DetailPanel(event: CalendarEvent, nowMillis: Long) {
 }
 
 // ─── Empty / Error states ─────────────────────────────────────────────────────
+
+@Composable
+private fun NoMeetingsTodayState() {
+    Column(
+        modifier            = Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text("🎉", fontSize = 48.sp)
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "No meetings today",
+            fontSize   = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color      = Color.White,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Your calendar is connected.\nEnjoy the free time!",
+            fontSize  = 14.sp,
+            color     = Color.White.copy(alpha = 0.5f),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
 
 @Composable
 private fun EmptyState(onConnectCalendar: () -> Unit) {

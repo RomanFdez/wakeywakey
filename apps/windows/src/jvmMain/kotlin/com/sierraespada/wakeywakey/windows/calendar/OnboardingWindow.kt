@@ -52,7 +52,7 @@ fun OnboardingWindow(
     val appIcon = rememberAppIconPainter()
     Window(
         onCloseRequest = onDismiss,
-        state          = rememberWindowState(size = DpSize(460.dp, 520.dp)),
+        state          = rememberWindowState(size = DpSize(460.dp, 540.dp)),
         title          = "WakeyWakey — Connect Calendar",
         icon           = appIcon,
         resizable      = false,
@@ -225,7 +225,7 @@ private fun OnboardingContent(
                         Spacer(Modifier.height(6.dp))
                         Text(email, color = White.copy(alpha = 0.55f), fontSize = 13.sp)
                     }
-                    Spacer(Modifier.height(32.dp))
+                    Spacer(Modifier.weight(1f))
                     Button(
                         onClick = onConnected,
                         colors  = ButtonDefaults.buttonColors(
