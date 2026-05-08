@@ -72,12 +72,15 @@ class MacSystemCalendarRepository : CalendarRepository {
                 output.trim().lines()
                     .filter { it.contains("|") }
                     .map { line ->
-                        val parts = line.split("|", limit = 2)
+                        val parts       = line.split("|")
+                        val rawColor    = parts.getOrNull(2)?.trim() ?: ""
+                        // parts[3] = cal.source.title desde CalendarHelper (e.g. "Gmail", "iCloud")
+                        val accountName = parts.getOrNull(3)?.trim()?.takeIf { it.isNotBlank() } ?: "Calendar"
                         DeviceCalendar(
                             id          = parts.getOrNull(1)?.trim()?.hashCode()?.toLong() ?: 0L,
                             name        = parts.getOrNull(0)?.trim() ?: "Unknown",
-                            accountName = "macOS Calendar",
-                            color       = 0xFF4285F4.toInt(),
+                            accountName = accountName,
+                            color       = rawColor.hexRgbToArgb() ?: 0xFF4285F4.toInt(),
                         )
                     }
             }.getOrElse { e ->
@@ -102,6 +105,8 @@ class MacSystemCalendarRepository : CalendarRepository {
         return output
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     // ── Event parser ──────────────────────────────────────────────────────────
 
     private fun parseEvents(output: String, includeAllDay: Boolean): List<CalendarEvent> {
@@ -122,6 +127,9 @@ class MacSystemCalendarRepository : CalendarRepository {
                     if (allDay && !includeAllDay) return@runCatching null
                     if (title.isBlank()) return@runCatching null
 
+                    val colorHex   = p.getOrNull(8)?.trim() ?: ""
+                    val isRecurring = p.getOrNull(9)?.trim()?.equals("true", ignoreCase = true) ?: false
+
                     CalendarEvent(
                         id           = (calId + startMs).hashCode().toLong() and 0x7FFF_FFFFL,
                         title        = title,
@@ -133,8 +141,19 @@ class MacSystemCalendarRepository : CalendarRepository {
                         calendarId   = calId.hashCode().toLong() and 0x7FFF_FFFFL,
                         calendarName = calName,
                         isAllDay     = allDay,
+                        calendarColor = colorHex.hexRgbToArgb(),
+                        isRecurring  = isRecurring,
                     )
                 }.getOrNull()
             }
     }
+}
+
+/** "#RRGGBB" or "RRGGBB" hex string → ARGB Int. Null if blank or invalid. */
+private fun String.hexRgbToArgb(): Int? {
+    if (isBlank()) return null
+    return runCatching {
+        val hex = removePrefix("#")
+        (0xFF000000.toInt()) or hex.toInt(16)
+    }.getOrNull()
 }

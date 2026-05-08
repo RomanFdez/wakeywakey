@@ -2,6 +2,7 @@ package com.sierraespada.wakeywakey.windows.scheduler
 
 import com.sierraespada.wakeywakey.calendar.CalendarRepository
 import com.sierraespada.wakeywakey.model.CalendarEvent
+import com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager
 import com.sierraespada.wakeywakey.windows.settings.DesktopSettingsRepository
 import kotlinx.coroutines.*
 import java.util.Calendar
@@ -73,6 +74,13 @@ class DesktopScheduler(
             val videoOk = !settings.filterVideoOnly || event.meetingLink != null
             val accOk   = !settings.filterAcceptedOnly || event.selfAttendeeStatus != 2
             calOk && videoOk && accOk
+        }.let { list ->
+            // Aplica restricciones del tier gratuito si el trial expiró
+            if (!DesktopEntitlementManager.isPro.value && !DesktopEntitlementManager.isTrialActive) {
+                val firstCalId = list.minOfOrNull { it.calendarId }
+                list.filter { it.calendarId == firstCalId }
+                    .take(DesktopEntitlementManager.FREE_TIER_MAX_DAILY_ALERTS)
+            } else list
         }
 
         // Cancela jobs de eventos que ya no están en la lista

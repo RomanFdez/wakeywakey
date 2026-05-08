@@ -7,26 +7,25 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
 import com.sierraespada.wakeywakey.model.CalendarEvent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.awt.Desktop
 import java.awt.GraphicsEnvironment
 import java.awt.MouseInfo
 import java.net.URI
-import javax.swing.SwingUtilities
 
 /**
  * Ventana de alerta full-screen para Windows / macOS.
  *
- * Estrategia de fullscreen:
- *  1. Detecta el monitor donde está el ratón.
- *  2. Crea una ventana undecorated + alwaysOnTop en ese monitor.
- *  3. Llama a GraphicsDevice.setFullScreenWindow() para pasar a modo exclusivo
- *     → en macOS cubre la menu bar y el dock (igual que IYF).
- *     → en Windows cubre la taskbar.
- *  4. Al cerrar, restaura setFullScreenWindow(null) para que el sistema
- *     vuelva al estado normal.
- *
- * El [icon] se pasa desde Main.kt para reutilizar el painter vectorial
- * creado en el contexto @Composable de application {}.
+ *  - Detecta el monitor donde está el ratón (o usa [explicitDevice] en modo all-screens).
+ *  - undecorated + alwaysOnTop + tamaño = bounds del monitor → cubre toda la pantalla.
+ *  - onCloseRequest vacío: la ventana NO responde a eventos de cierre del SO;
+ *    solo se descarta mediante los botones de la UI (Dismiss / Join / Snooze).
+ *  - El sonido en bucle se detiene automáticamente a los 30 s.
  */
 @Composable
 fun AlertWindow(
@@ -58,7 +57,10 @@ fun AlertWindow(
     val screenBounds = remember(targetDevice) { targetDevice.defaultConfiguration.bounds }
 
     Window(
-        onCloseRequest = onDismiss,
+        // onCloseRequest vacío: la alerta SOLO se cierra por acción explícita del usuario
+        // (botón Dismiss, Join o Snooze). Esto evita que macOS la cierre automáticamente
+        // durante transiciones de foco o events del sistema.
+        onCloseRequest = {},
         state = rememberWindowState(
             placement = WindowPlacement.Floating,
             width     = screenBounds.width.dp,
@@ -72,34 +74,37 @@ fun AlertWindow(
         title       = "WakeyWakey",
         icon        = icon,
     ) {
-        // Entra en fullscreen exclusivo sobre el monitor correcto (EDT obligatorio).
-        // Esto cubre la menu bar en macOS y la taskbar en Windows.
-        DisposableEffect(targetDevice) {
-            SwingUtilities.invokeLater {
-                targetDevice.setFullScreenWindow(window)
-                window.toFront()
-                window.requestFocus()
-            }
-            onDispose {
-                SwingUtilities.invokeLater {
-                    if (targetDevice.fullScreenWindow === window) {
-                        targetDevice.setFullScreenWindow(null)
-                    }
-                }
-            }
+        // Trae la ventana al frente sin usar setFullScreenWindow (API legacy que en
+        // macOS moderno puede emitir eventos de cierre durante la transición exclusiva).
+        DisposableEffect(Unit) {
+            window.toFront()
+            window.requestFocus()
+            onDispose { }
         }
 
-        // Reproduce sonido de alerta
+        // Reproduce sonido de alerta; si está en bucle, lo para a los 30 s máximo.
+        // En modo preview no suena.
         DisposableEffect(Unit) {
             val s = com.sierraespada.wakeywakey.windows.settings.DesktopSettingsRepository.settings.value
-            val soundJob = if (s.soundEnabled) {
-                com.sierraespada.wakeywakey.windows.SoundPlayer.play(
+            var soundJob: Job? = null
+            val stopScope = CoroutineScope(Dispatchers.Default)
+            if (!isPreview && s.soundEnabled) {
+                soundJob = com.sierraespada.wakeywakey.windows.SoundPlayer.play(
                     soundId = s.alertSoundId,
                     volume  = s.alertVolume,
                     loop    = s.repeatSound,
                 )
-            } else null
-            onDispose { soundJob?.cancel() }
+                if (s.repeatSound) {
+                    stopScope.launch {
+                        delay(30_000L)
+                        soundJob?.cancel()
+                    }
+                }
+            }
+            onDispose {
+                stopScope.cancel()
+                soundJob?.cancel()
+            }
         }
 
         DesktopAlertScreen(

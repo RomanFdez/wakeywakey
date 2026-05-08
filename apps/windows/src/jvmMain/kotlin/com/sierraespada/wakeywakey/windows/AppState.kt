@@ -4,6 +4,7 @@ import androidx.compose.runtime.*
 import com.sierraespada.wakeywakey.calendar.StubCalendarRepository
 import com.sierraespada.wakeywakey.model.CalendarEvent
 import com.sierraespada.wakeywakey.windows.calendar.CalendarAccountManager
+import com.sierraespada.wakeywakey.windows.calendar.CombinedCalendarRepository
 import com.sierraespada.wakeywakey.windows.calendar.MacSystemCalendarRepository
 import com.sierraespada.wakeywakey.windows.home.HomeViewModel
 import com.sierraespada.wakeywakey.windows.scheduler.DesktopScheduler
@@ -57,6 +58,10 @@ class AppState {
     var showOnboarding  by mutableStateOf(false)
     var showTrayPopup   by mutableStateOf(false)
     var trayClickX      by mutableStateOf(0)
+    /** true cuando el onboarding se abrió desde Settings → al cerrar vuelve a Settings. */
+    var onboardingFromSettings by mutableStateOf(false)
+    /** Muestra el paywall (trial expirado o usuario lo abre manualmente). */
+    var showPaywall     by mutableStateOf(false)
 
     // ── Alerta activa ─────────────────────────────────────────────────────────
     var pendingAlert        by mutableStateOf<CalendarEvent?>(null)
@@ -88,7 +93,7 @@ class AppState {
     private val activeRepo
         get() = when (platformMode) {
             PlatformMode.MAC_SYSTEM    -> macSystemRepo
-            PlatformMode.WINDOWS_OAUTH -> CalendarAccountManager.activeRepo.value ?: stub
+            PlatformMode.WINDOWS_OAUTH -> CalendarAccountManager.combinedRepo ?: stub
         }
 
     // ── Scheduler + HomeViewModel ──────────────────────────────────────────────
@@ -108,13 +113,18 @@ class AppState {
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     fun start() {
-        // WINDOWS_OAUTH: reacciona cuando el usuario conecta/cambia cuenta OAuth
-        CalendarAccountManager.activeRepo
-            .onEach { repo ->
-                if (platformMode == PlatformMode.WINDOWS_OAUTH && repo != null) {
+        // WINDOWS_OAUTH: reacciona cuando el usuario conecta/desconecta cualquier cuenta OAuth
+        CalendarAccountManager.activeRepos
+            .onEach { repos ->
+                if (platformMode == PlatformMode.WINDOWS_OAUTH) {
+                    val repo = when {
+                        repos.isEmpty() -> stub
+                        repos.size == 1 -> repos.first()
+                        else            -> CombinedCalendarRepository(repos)
+                    }
                     scheduler.updateRepo(repo)
                     homeVm.updateRepo(repo)
-                    scheduler.syncNow()
+                    if (repos.isNotEmpty()) scheduler.syncNow()
                 }
             }
             .launchIn(appScope)
@@ -130,7 +140,7 @@ class AppState {
                     if (isFirstEmission) { isFirstEmission = false; return@collect }
                     val repo = when (mode) {
                         PlatformMode.MAC_SYSTEM    -> macSystemRepo
-                        PlatformMode.WINDOWS_OAUTH -> CalendarAccountManager.activeRepo.value ?: stub
+                        PlatformMode.WINDOWS_OAUTH -> CalendarAccountManager.combinedRepo ?: stub
                     }
                     scheduler.updateRepo(repo)
                     homeVm.switchRepo(repo)   // limpia filtros al cambiar de modo

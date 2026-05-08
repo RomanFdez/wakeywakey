@@ -46,6 +46,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setFilterVideoOnly(v: Boolean)    = viewModelScope.launch { repo.setFilterVideoOnly(v) }
     fun setFilterAcceptedOnly(v: Boolean) = viewModelScope.launch { repo.setFilterAcceptedOnly(v) }
     fun setShowAllDayEvents(v: Boolean)   = viewModelScope.launch { repo.setShowAllDayEvents(v) }
+    fun setShowDevBar(v: Boolean)         = viewModelScope.launch { repo.setShowDevBar(v) }
 
     fun toggleCalendar(id: Long) {
         val current = _state.value.settings.enabledCalendarIds

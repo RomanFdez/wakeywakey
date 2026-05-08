@@ -26,6 +26,12 @@
     <string name="home_event_in_minutes">en %dm</string>
     <string name="home_no_events">Sin reuniones hoy</string>
     <string name="home_tablet_no_selection">Pulsa una reunión\npara ver los detalles</string>
+    <string name="home_next_meeting">Próxima reunión</string>
+    <string name="home_notes">Notas</string>
+    <string name="add_alert_title">Nueva alerta</string>
+    <string name="add_alert_title_hint">Título</string>
+    <string name="add_alert_notes_hint">Notas (opcional)</string>
+    <string name="add_alert_confirm">Programar alerta</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Ajustes</string>

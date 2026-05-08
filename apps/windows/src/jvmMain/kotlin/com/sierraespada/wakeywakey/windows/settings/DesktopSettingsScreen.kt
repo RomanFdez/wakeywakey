@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,6 +19,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sierraespada.wakeywakey.model.DeviceCalendar
 import com.sierraespada.wakeywakey.model.UserSettings
 import com.sierraespada.wakeywakey.windows.PlatformMode
 import com.sierraespada.wakeywakey.windows.calendar.CalendarAccountManager
@@ -45,10 +47,11 @@ private enum class SettingsTab(val label: String, val icon: ImageVector) {
 
 @Composable
 fun DesktopSettingsScreen(
-    onConnectCalendar:  () -> Unit,
-    appIcon:            Painter,
-    availableCalendars: List<Pair<Long, String>> = emptyList(),
-    platformMode:       PlatformMode             = PlatformMode.WINDOWS_OAUTH,
+    onConnectCalendar: () -> Unit,
+    appIcon:           Painter,
+    allCalendars:      List<DeviceCalendar> = emptyList(),
+    platformMode:      PlatformMode         = PlatformMode.WINDOWS_OAUTH,
+    onUpgrade:         () -> Unit           = {},
 ) {
     val s   by DesktopSettingsRepository.settings.collectAsState()
     var tab by remember { mutableStateOf(SettingsTab.CALENDAR) }
@@ -93,8 +96,8 @@ fun DesktopSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             when (tab) {
-                SettingsTab.CALENDAR -> CalendarTab(s, onConnectCalendar, availableCalendars, platformMode)
-                SettingsTab.ALERTS   -> AlertsTab(s)
+                SettingsTab.CALENDAR -> CalendarTab(s, onConnectCalendar, allCalendars, platformMode, onUpgrade)
+                SettingsTab.ALERTS   -> AlertsTab(s, onUpgrade)
                 SettingsTab.MENU_BAR -> MenuBarTab(s, appIcon)
                 SettingsTab.APP      -> AppTab(s)
             }
@@ -113,14 +116,13 @@ fun DesktopSettingsScreen(
 
 @Composable
 private fun CalendarTab(
-    s:                  UserSettings,
-    onConnectCalendar:  () -> Unit,
-    availableCalendars: List<Pair<Long, String>>,
-    platformMode:       PlatformMode,
+    s:             UserSettings,
+    onConnectCalendar: () -> Unit,
+    allCalendars:  List<DeviceCalendar>,
+    platformMode:  PlatformMode,
+    onUpgrade:     () -> Unit = {},
 ) {
-    val provider    by CalendarAccountManager.activeProvider.collectAsState()
-    val isConnected  = provider != null
-    val isMacMode    = platformMode == PlatformMode.MAC_SYSTEM
+    val isMacMode = platformMode == PlatformMode.MAC_SYSTEM
 
     // ── Modo macOS: fuente del sistema, sin OAuth ─────────────────────────────
     if (isMacMode) {
@@ -134,6 +136,57 @@ private fun CalendarTab(
                     Text("Using macOS system calendars", color = White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     Text("Google, iCloud, Exchange… all calendars from the macOS Calendar app", color = Subtitle, fontSize = 11.sp)
                 }
+            }
+        }
+    }
+
+    // ── Cuentas OAuth — Google y Microsoft independientes ─────────────────────
+    if (!isMacMode) {
+        val activeProviders  by CalendarAccountManager.activeProviders.collectAsState()
+        // connectedEmails es reactivo: se actualiza cuando getAvailableCalendars
+        // resuelve el email en background (p.ej. primer arranque sin email en token).
+        val connectedEmails  by CalendarAccountManager.connectedEmails.collectAsState()
+        val googleConnected    = "google"    in activeProviders
+        val microsoftConnected = "microsoft" in activeProviders
+
+        Card {
+            SectionLabel("Calendar accounts", Icons.Filled.CalendarMonth)
+            ItemDivider()
+
+            // ── Google ────────────────────────────────────────────────────────
+            if (googleConnected) {
+                ConnectedAccountRow(
+                    email        = connectedEmails["google"] ?: "",
+                    provider     = "google",
+                    onDisconnect = { CalendarAccountManager.disconnect("google") },
+                    onReconnect  = onConnectCalendar,
+                )
+            } else {
+                ProviderConnectRow(
+                    label   = "Google Calendar",
+                    color   = Color(0xFF4285F4),
+                    enabled = true,
+                    onClick = onConnectCalendar,
+                )
+            }
+
+            ItemDivider()
+
+            // ── Microsoft ─────────────────────────────────────────────────────
+            if (microsoftConnected) {
+                ConnectedAccountRow(
+                    email        = connectedEmails["microsoft"] ?: "",
+                    provider     = "microsoft",
+                    onDisconnect = { CalendarAccountManager.disconnect("microsoft") },
+                    onReconnect  = onConnectCalendar,
+                )
+            } else {
+                ProviderConnectRow(
+                    label   = "Microsoft / Outlook",
+                    color   = Color(0xFF0078D4),
+                    enabled = true,
+                    onClick = onConnectCalendar,
+                )
             }
         }
     }
@@ -153,62 +206,113 @@ private fun CalendarTab(
         CompactToggle("Include all-day events", s.showAllDayEvents) {
             DesktopSettingsRepository.save(s.copy(showAllDayEvents = it))
         }
-
-        if (availableCalendars.isNotEmpty()) {
-            ItemDivider()
-            SectionLabel("Calendars", Icons.Filled.CalendarViewMonth)
-            ItemDivider()
-            availableCalendars.forEachIndexed { idx, (calId, calName) ->
-                if (idx > 0) ItemDivider()
-                val enabled = s.enabledCalendarIds.isEmpty() || calId in s.enabledCalendarIds
-                CompactToggle(calName, enabled) { on ->
-                    val allIds  = availableCalendars.map { it.first }.toSet()
-                    val current = if (s.enabledCalendarIds.isEmpty()) allIds else s.enabledCalendarIds
-                    val newSet  = if (on) current + calId else current - calId
-                    val toSave  = if (newSet == allIds) emptySet() else newSet
-                    DesktopSettingsRepository.save(s.copy(enabledCalendarIds = toSave))
-                }
-            }
-        }
     }
 
-    // ── Cuenta OAuth — solo en WINDOWS_OAUTH, y al final si ya está conectada ─
-    if (!isMacMode) {
-        if (isConnected) {
-            // Ya conectado → al fondo
-            Card {
-                SectionLabel("Calendar account", Icons.Filled.CalendarMonth)
-                ItemDivider()
-                ConnectedAccountRow(
-                    email        = CalendarAccountManager.connectedEmail ?: "",
-                    provider     = provider!!,
-                    onDisconnect = { CalendarAccountManager.disconnect() },
-                    onReconnect  = onConnectCalendar,
-                )
-            }
-        } else {
-            // Sin conectar → arriba con botón prominente
-            Card {
+    // ── Calendarios agrupados por cuenta ──────────────────────────────────────
+    if (allCalendars.isNotEmpty()) {
+        val isProForCal   by com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager.isPro.collectAsState()
+        val isTrialForCal = com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager.isTrialActive
+        val calUnlocked   = isProForCal || isTrialForCal
+
+        val allIds    = allCalendars.map { it.id }.toSet()
+        val byAccount = allCalendars
+            .sortedWith(compareBy({ it.accountName }, { it.name }))
+            .groupBy { it.accountName }
+
+        // Free tier: el usuario elige cual de sus calendarios usar (máx. 1).
+        // Si aún no ha elegido, usamos el primero disponible como predeterminado.
+        val freeActiveId: Long? = if (!calUnlocked) {
+            if (s.enabledCalendarIds.isNotEmpty()) s.enabledCalendarIds.first()
+            else allCalendars.firstOrNull()?.id
+        } else null
+
+        Card {
+            // Cabecera de sección con hint de límite en Free tier
+            Row(
+                modifier              = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
                 Row(
-                    Modifier.fillMaxWidth(),
                     verticalAlignment     = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
+                    Icon(Icons.Filled.CalendarViewMonth, null, tint = Yellow, modifier = Modifier.size(13.dp))
+                    Text("Calendars", color = Yellow, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                }
+                if (!calUnlocked) {
                     Row(
+                        modifier              = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { onUpgrade() }
+                            .background(Yellow.copy(alpha = 0.08f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
                         verticalAlignment     = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
                     ) {
-                        Icon(Icons.Filled.CalendarMonth, null, tint = Subtitle, modifier = Modifier.size(16.dp))
-                        Text("No calendar connected", color = Subtitle, fontSize = 13.sp)
+                        Text("🔒", fontSize = 9.sp)
+                        Text("Free · max 1", color = Yellow.copy(alpha = 0.7f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    Button(
-                        onClick        = onConnectCalendar,
-                        colors         = ButtonDefaults.buttonColors(containerColor = Yellow, contentColor = Navy),
-                        shape          = RoundedCornerShape(8.dp),
-                        modifier       = Modifier.height(32.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                    ) {
-                        Text("Connect", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                }
+            }
+
+            byAccount.entries.forEach { (account, cals) ->
+                ItemDivider()
+
+                // ── Cabecera de cuenta ────────────────────────────────────────
+                Row(
+                    modifier              = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(Icons.Filled.AccountCircle, null, tint = Subtitle, modifier = Modifier.size(13.dp))
+                    Text(account, color = Subtitle, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                // ── Calendarios de esa cuenta ─────────────────────────────────
+                cals.forEach { cal ->
+                    ItemDivider()
+                    if (!calUnlocked) {
+                        // Free tier: comportamiento de radio button — el usuario elige cuál usar
+                        val selected = cal.id == freeActiveId
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    DesktopSettingsRepository.save(s.copy(enabledCalendarIds = setOf(cal.id)))
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                cal.name,
+                                color      = if (selected) White else Subtitle.copy(alpha = 0.55f),
+                                fontSize   = 13.sp,
+                                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                                modifier   = Modifier.weight(1f),
+                            )
+                            RadioButton(
+                                selected = selected,
+                                onClick  = {
+                                    DesktopSettingsRepository.save(s.copy(enabledCalendarIds = setOf(cal.id)))
+                                },
+                                colors   = RadioButtonDefaults.colors(
+                                    selectedColor   = Yellow,
+                                    unselectedColor = Subtitle.copy(alpha = 0.4f),
+                                ),
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    } else {
+                        // Pro / Trial: toggles independientes
+                        val enabled = s.enabledCalendarIds.isEmpty() || cal.id in s.enabledCalendarIds
+                        CompactToggle(cal.name, enabled) { on ->
+                            val current = if (s.enabledCalendarIds.isEmpty()) allIds else s.enabledCalendarIds
+                            val newSet  = if (on) current + cal.id else current - cal.id
+                            val toSave  = if (newSet == allIds) emptySet() else newSet
+                            DesktopSettingsRepository.save(s.copy(enabledCalendarIds = toSave))
+                        }
                     }
                 }
             }
@@ -219,7 +323,7 @@ private fun CalendarTab(
 // ─── Tab: Alerts ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun AlertsTab(s: UserSettings) {
+private fun AlertsTab(s: UserSettings, onUpgrade: () -> Unit = {}) {
 
     // ── Timing + Display — un solo bloque ─────────────────────────────────────
     Card {
@@ -298,14 +402,23 @@ private fun AlertsTab(s: UserSettings) {
         }
     }
 
-    // ── Working hours ─────────────────────────────────────────────────────────
+    // ── Working hours (Pro) ───────────────────────────────────────────────────
+    val isProForWorkHours by com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager.isPro.collectAsState()
+    val isTrialForWorkHours = com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager.isTrialActive
+    val workHoursUnlocked = isProForWorkHours || isTrialForWorkHours
     Card {
         SectionLabel("Working hours", Icons.Filled.Schedule)
         ItemDivider()
-        CompactToggle("Working hours only", "Silence alerts outside your work schedule", s.workHoursEnabled) {
-            DesktopSettingsRepository.save(s.copy(workHoursEnabled = it))
+        CompactToggle(
+            label    = "Working hours only",
+            subtitle = if (workHoursUnlocked) "Silence alerts outside your work schedule"
+                       else "🔒 Pro feature — upgrade to enable",
+            checked  = s.workHoursEnabled && workHoursUnlocked,
+        ) {
+            if (workHoursUnlocked) DesktopSettingsRepository.save(s.copy(workHoursEnabled = it))
+            else onUpgrade()
         }
-        if (s.workHoursEnabled) {
+        if (s.workHoursEnabled && workHoursUnlocked) {
             ItemDivider()
             Row(
                 Modifier.fillMaxWidth(),
@@ -349,7 +462,11 @@ private fun AlertsTab(s: UserSettings) {
 
 @Composable
 private fun SoundSelectorRow(s: UserSettings) {
-    val sounds     = com.sierraespada.wakeywakey.windows.SoundPlayer.SOUND_DEFS
+    val isPro      by com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager.isPro.collectAsState()
+    val isTrial    = com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager.isTrialActive
+    val allSounds  = com.sierraespada.wakeywakey.windows.SoundPlayer.SOUND_DEFS
+    // Free tier: solo los primeros 3 sonidos
+    val sounds     = if (isPro || isTrial) allSounds else allSounds.take(3)
     val current    = sounds.firstOrNull { it.id == s.alertSoundId } ?: sounds[0]
     var expanded   by remember { mutableStateOf(false) }
     val previewJob = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
@@ -568,6 +685,130 @@ private fun accentPreviewColor(id: String) = when (id) {
 
 @Composable
 private fun AppTab(s: UserSettings) {
+
+    // ── Plan / License status ─────────────────────────────────────────────────
+    val isPro         by com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager.isPro.collectAsState()
+    val trialDaysLeft by com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager.trialDaysLeft.collectAsState()
+    val licenseKey    by com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager.licenseKey.collectAsState()
+
+    Card {
+        SectionLabel("Plan", Icons.Filled.Star)
+        ItemDivider()
+        Row(
+            modifier              = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                when {
+                    isPro -> {
+                        Text("✅ WakeyWakey Pro", color = Yellow, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        if (!licenseKey.isNullOrBlank()) {
+                            val masked = licenseKey!!.take(8) + "••••••••••••••••••••"
+                            Text(masked, color = Subtitle, fontSize = 10.sp)
+                        }
+                    }
+                    trialDaysLeft > 0 -> {
+                        Text("🔄 Free trial", color = White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text("$trialDaysLeft days remaining", color = Subtitle, fontSize = 11.sp)
+                    }
+                    else -> {
+                        Text("⛔ Trial expired", color = Danger, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Upgrade to keep using WakeyWakey", color = Subtitle, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        // ── Desactivar este dispositivo (libera una plaza) ────────────────────
+        if (isPro) {
+            val scope = rememberCoroutineScope()
+            var isDeactivating  by remember { mutableStateOf(false) }
+            var deactivateError by remember { mutableStateOf<String?>(null) }
+            ItemDivider()
+            Row(
+                modifier              = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Deactivate this device", color = White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text("Frees up one of your 5 activations", color = Subtitle, fontSize = 10.sp)
+                }
+                Button(
+                    onClick = {
+                        isDeactivating = true; deactivateError = null
+                        scope.launch {
+                            val error = com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager
+                                .deactivateLicense()
+                            isDeactivating = false
+                            if (error != null) deactivateError = error
+                        }
+                    },
+                    enabled = !isDeactivating,
+                    colors  = ButtonDefaults.buttonColors(containerColor = Danger, contentColor = White),
+                ) {
+                    if (isDeactivating) CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = White)
+                    else Text("Deactivate", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (deactivateError != null) Text(deactivateError!!, color = Danger, fontSize = 10.sp)
+        }
+
+        // ── Activación manual por si falla el botón automático ────────────────
+        if (!isPro) {
+            val scope = rememberCoroutineScope()
+            ItemDivider()
+            var manualKey   by remember { mutableStateOf("") }
+            var keyError    by remember { mutableStateOf<String?>(null) }
+            var keySuccess  by remember { mutableStateOf(false) }
+            var isValidating by remember { mutableStateOf(false) }
+
+            Text("Have a license key?", color = Subtitle, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+            Row(
+                modifier              = Modifier.fillMaxWidth().padding(top = 4.dp),
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                OutlinedTextField(
+                    value         = manualKey,
+                    onValueChange = { manualKey = it.trim(); keyError = null; keySuccess = false },
+                    placeholder   = { Text("License key", color = Subtitle, fontSize = 11.sp) },
+                    singleLine    = true,
+                    enabled       = !isValidating,
+                    modifier      = Modifier.weight(1f),
+                    colors        = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor   = Yellow,
+                        unfocusedBorderColor = Subtitle.copy(alpha = 0.3f),
+                        focusedTextColor     = White,
+                        unfocusedTextColor   = White,
+                    ),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp),
+                )
+                Button(
+                    onClick = {
+                        if (manualKey.length < 10) { keyError = "Invalid key"; return@Button }
+                        isValidating = true
+                        scope.launch {
+                            val error = com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager
+                                .activateLicenseOnline(manualKey)
+                            isValidating = false
+                            if (error == null) { keySuccess = true; manualKey = "" }
+                            else keyError = error
+                        }
+                    },
+                    enabled = !isValidating,
+                    colors  = ButtonDefaults.buttonColors(containerColor = Yellow, contentColor = Color(0xFF1A1A2E)),
+                ) {
+                    if (isValidating) CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = Color(0xFF1A1A2E))
+                    else Text("Activate", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (keyError != null)  Text(keyError!!, color = Danger, fontSize = 10.sp)
+            if (keySuccess)        Text("✅ License activated!", color = Color(0xFF4CAF50), fontSize = 10.sp)
+        }
+    }
+
     if (AutostartManager.isSupported) {
         Card {
             var autostartOn by remember { mutableStateOf(AutostartManager.isEnabled) }
@@ -582,15 +823,17 @@ private fun AppTab(s: UserSettings) {
         }
     }
 
-    // ── Developer ─────────────────────────────────────────────────────────────
-    Card {
-        SectionLabel("Developer", Icons.Filled.BugReport)
-        ItemDivider()
-        CompactToggle(
-            label    = "Modo DEV",
-            subtitle = "Muestra la barra de desarrollo en el popup del tray",
-            checked  = s.showDevBar,
-        ) { DesktopSettingsRepository.save(s.copy(showDevBar = it)) }
+    // ── Developer — solo en builds de desarrollo ──────────────────────────────
+    if (!com.sierraespada.wakeywakey.windows.AppBuildConfig.IS_RELEASE) {
+        Card {
+            SectionLabel("Developer", Icons.Filled.BugReport)
+            ItemDivider()
+            CompactToggle(
+                label    = "Modo DEV",
+                subtitle = "Muestra la barra de desarrollo en el popup del tray",
+                checked  = s.showDevBar,
+            ) { DesktopSettingsRepository.save(s.copy(showDevBar = it)) }
+        }
     }
 }
 
@@ -752,6 +995,51 @@ private fun ConnectedAccountRow(
                 TextButton(onClick = { showConfirm = false }) { Text("Cancel", color = Yellow) }
             },
         )
+    }
+}
+
+// ─── ProviderConnectRow ───────────────────────────────────────────────────────
+
+@Composable
+private fun ProviderConnectRow(
+    label:   String,
+    color:   Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier              = Modifier.fillMaxWidth(),
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                modifier         = Modifier.size(32.dp).clip(CircleShape).background(color.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label.first().toString(),
+                    color      = color.copy(alpha = if (enabled) 1f else 0.4f),
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 14.sp,
+                )
+            }
+            Text(label, color = if (enabled) Subtitle else Subtitle.copy(alpha = 0.5f), fontSize = 13.sp)
+        }
+        Button(
+            onClick        = onClick,
+            enabled        = enabled,
+            colors         = ButtonDefaults.buttonColors(containerColor = color.copy(alpha = 0.15f), contentColor = color),
+            shape          = RoundedCornerShape(8.dp),
+            modifier       = Modifier.height(30.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+            elevation      = ButtonDefaults.buttonElevation(0.dp),
+        ) {
+            Text("Connect", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+        }
     }
 }
 

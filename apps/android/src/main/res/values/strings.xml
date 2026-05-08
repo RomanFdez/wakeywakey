@@ -28,6 +28,12 @@
     <string name="home_event_in_minutes">in %dm</string>
     <string name="home_no_events">No meetings today</string>
     <string name="home_tablet_no_selection">Tap a meeting\nto see details</string>
+    <string name="home_next_meeting">Next meeting</string>
+    <string name="home_notes">Notes</string>
+    <string name="add_alert_title">New alert</string>
+    <string name="add_alert_title_hint">Title</string>
+    <string name="add_alert_notes_hint">Notes (optional)</string>
+    <string name="add_alert_confirm">Schedule alert</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>

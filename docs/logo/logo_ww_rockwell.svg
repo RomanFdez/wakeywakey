@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="body" cx="392" cy="312" r="780" fx="392" fy="312" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fffee8"/>
+      <stop offset="0.22" stop-color="#fff59c"/>
+      <stop offset="0.65" stop-color="#ffe85c"/>
+      <stop offset="1" stop-color="#ffd22e"/>
+    </radialGradient>
+    <radialGradient id="shadow" cx="772" cy="812" r="500" fx="772" fy="812" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c99f12" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#c99f12" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="512" cy="512" r="500" fill="url(#body)"/>
+  <circle cx="512" cy="512" r="500" fill="url(#shadow)"/>
+  <text x="512" y="625" text-anchor="middle"
+        font-family="Rockwell" font-weight="700"
+        font-size="340" letter-spacing="-15" fill="#2e2e33">WW</text>
+</svg>

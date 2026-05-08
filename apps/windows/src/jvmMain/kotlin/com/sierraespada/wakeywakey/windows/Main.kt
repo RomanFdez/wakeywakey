@@ -3,6 +3,11 @@ package com.sierraespada.wakeywakey.windows
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
+import java.awt.Desktop
+import java.net.InetAddress
+import java.net.ServerSocket
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -12,10 +17,16 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.*
 import com.sierraespada.wakeywakey.windows.alert.AlertWindow
+import com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager
+import com.sierraespada.wakeywakey.windows.billing.DesktopPaywallWindow
 import com.sierraespada.wakeywakey.windows.calendar.OnboardingWindow
 import com.sierraespada.wakeywakey.windows.calendar.SetupWizardWindow
 import com.sierraespada.wakeywakey.windows.home.HomeScreen
@@ -108,7 +119,67 @@ internal fun rememberAppIconPainter(): Painter = AppIcon
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
+// ── Single-instance lock via socket ──────────────────────────────────────────
+//
+// Intentamos hacer bind en un puerto localhost fijo.
+// Si el bind falla (BindException) → otra instancia ya está corriendo.
+// El OS libera el puerto automáticamente cuando el proceso muere — sin ficheros residuales.
+
+private const val SINGLE_INSTANCE_PORT = 47291   // puerto arbitrario, específico de WakeyWakey
+private var _instanceSocket: ServerSocket? = null
+
+// ── Custom URL scheme: wakeywakey://activate?key=XXXX ─────────────────────────
+// Recibe la license key tras la compra en LemonSqueezy y activa la licencia
+// sin que el usuario tenga que copiar/pegar nada.
+
+private val _pendingActivationKey = MutableStateFlow<String?>(null)
+
+private fun setupUriHandler() {
+    if (!Desktop.isDesktopSupported()) return
+    val desktop = Desktop.getDesktop()
+    if (!desktop.isSupported(Desktop.Action.APP_OPEN_URI)) return
+    desktop.setOpenURIHandler { event ->
+        val uri = event.uri
+        if (uri.scheme == "wakeywakey" && uri.host == "activate") {
+            val key = uri.query
+                ?.split("&")
+                ?.firstOrNull { it.startsWith("key=") }
+                ?.removePrefix("key=")
+                ?.trim()
+            if (!key.isNullOrBlank()) {
+                _pendingActivationKey.value = key
+            }
+        }
+    }
+}
+
+private fun acquireSingleInstanceLock(): Boolean {
+    return try {
+        _instanceSocket = ServerSocket(SINGLE_INSTANCE_PORT, 0, InetAddress.getByName("127.0.0.1"))
+        true
+    } catch (e: java.net.BindException) {
+        false  // puerto ocupado → otra instancia activa
+    } catch (e: Exception) {
+        System.err.println("WakeyWakey: single-instance check failed (${e.message}) — allowing start")
+        true
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 fun main() {
+    // Instancia única: si ya hay una corriendo, salir silenciosamente.
+    if (!acquireSingleInstanceLock()) {
+        System.err.println("WakeyWakey: otra instancia ya está en ejecución — saliendo.")
+        return
+    }
+
+    // Registra el handler de wakeywakey:// ANTES de inicializar AWT/Compose.
+    setupUriHandler()
+
+    // Oculta el icono del Dock en macOS — la app vive solo en la barra de menú.
+    // Debe establecerse ANTES de cualquier inicialización de AWT.
+    System.setProperty("apple.awt.UIElement", "true")
     System.setProperty("skiko.renderApi", "METAL")
     System.setProperty("apple.awt.application.appearance", "system")
     System.setProperty("apple.awt.application.name", "WakeyWakey")
@@ -122,14 +193,95 @@ fun main() {
             appState.start()
         }
 
+        // Activa la licencia automáticamente cuando llega un wakeywakey://activate?key=... URL
+        var showActivationSuccess by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            _pendingActivationKey
+                .filterNotNull()
+                .collect { key ->
+                    DesktopEntitlementManager.activateLicense(key)
+                    _pendingActivationKey.value = null
+                    appState.showPaywall = false
+                    showActivationSuccess = true
+                }
+        }
+
+        if (showActivationSuccess) {
+            androidx.compose.ui.window.DialogWindow(
+                onCloseRequest = { showActivationSuccess = false },
+                title          = "WakeyWakey",
+                state          = androidx.compose.ui.window.rememberDialogState(
+                    width  = 340.dp,
+                    height = 240.dp,
+                ),
+            ) {
+                MaterialTheme(colorScheme = AppColorScheme) {
+                    androidx.compose.foundation.layout.Column(
+                        modifier              = androidx.compose.ui.Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF1A1A2E))
+                            .padding(24.dp),
+                        verticalArrangement   = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+                        horizontalAlignment   = androidx.compose.ui.Alignment.CenterHorizontally,
+                    ) {
+                        androidx.compose.material3.Text(
+                            "🎉 License activated!",
+                            color      = Color(0xFFFFE03A),
+                            fontSize   = 18.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        )
+                        androidx.compose.material3.Text(
+                            "Welcome to WakeyWakey Pro.\nYou now have full access to all features.",
+                            color    = Color.White,
+                            fontSize = 13.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                        androidx.compose.material3.Button(
+                            onClick = { showActivationSuccess = false },
+                            colors  = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFFE03A),
+                                contentColor   = Color(0xFF1A1A2E),
+                            ),
+                        ) {
+                            androidx.compose.material3.Text("Get started", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
         DisposableEffect(Unit) {
             onDispose { appState.dispose() }
         }
 
         // ── Tray nativo via AWT (isImageAutoSize = false → texto sin recortar) ─
 
-        val settings    by DesktopSettingsRepository.settings.collectAsState()
-        val homeUiState by appState.homeVm.uiState.collectAsState()
+        val settings       by DesktopSettingsRepository.settings.collectAsState()
+        val homeUiState    by appState.homeVm.uiState.collectAsState()
+        val isPro          by DesktopEntitlementManager.isPro.collectAsState()
+        val trialDaysLeft  by DesktopEntitlementManager.trialDaysLeft.collectAsState()
+
+        // Si el trial expira, mostrar el paywall automáticamente (una sola vez)
+        LaunchedEffect(trialDaysLeft, isPro) {
+            if (!isPro && trialDaysLeft <= 0 && !appState.showPaywall) {
+                appState.showPaywall = true
+            }
+        }
+
+        // Al cambiar de tier (DEV o activación de licencia) cerrar Settings si está abierta,
+        // ya que algunos elementos del tier no se recomponen hasta reabrirla.
+        LaunchedEffect(Unit) {
+            var initialPro   = isPro
+            var initialDays  = trialDaysLeft
+            snapshotFlow { DesktopEntitlementManager.isPro.value to DesktopEntitlementManager.trialDaysLeft.value }
+                .collect { (pro, days) ->
+                    if (pro != initialPro || days != initialDays) {
+                        initialPro  = pro
+                        initialDays = days
+                        if (appState.showSettings) appState.showSettings = false
+                    }
+                }
+        }
 
         // Instala el tray una sola vez y lo elimina al cerrar la app
         DisposableEffect(Unit) {
@@ -170,6 +322,9 @@ fun main() {
                     onQuit           = { exitApplication() },
                     onDismiss        = { appState.showTrayPopup = false },
                     showDevBar       = settings.showDevBar,
+                    isPro            = isPro,
+                    trialDaysLeft    = trialDaysLeft,
+                    onUpgrade        = { appState.showTrayPopup = false; appState.showPaywall = true },
                     onDebugPreview   = { appState.debugPreviewAlert() },
                     onDebugAlarm5s   = { appState.debugAlarmIn5s() },
                     onResetWizard    = { appState.resetWizard() },
@@ -226,12 +381,14 @@ fun main() {
                 MaterialTheme(colorScheme = AppColorScheme) {
                     DesktopSettingsScreen(
                         onConnectCalendar  = {
-                            appState.showSettings   = false
-                            appState.showOnboarding = true
+                            appState.showSettings          = false
+                            appState.onboardingFromSettings = true
+                            appState.showOnboarding        = true
                         },
-                        appIcon            = AppIcon,
-                        availableCalendars = homeUiState.availableCalendars,
-                        platformMode       = appState.platformMode,
+                        appIcon      = AppIcon,
+                        allCalendars = homeUiState.allCalendars,
+                        platformMode = appState.platformMode,
+                        onUpgrade    = { appState.showPaywall = true },
                     )
                 }
             }
@@ -244,8 +401,29 @@ fun main() {
                 onConnected = {
                     appState.showOnboarding = false
                     appState.homeVm.refresh()
+                    // Si vino desde Settings, volver a Settings para ver las cuentas
+                    if (appState.onboardingFromSettings) {
+                        appState.onboardingFromSettings = false
+                        appState.showSettings = true
+                    }
                 },
-                onDismiss = { appState.showOnboarding = false },
+                onDismiss = {
+                    appState.showOnboarding = false
+                    // Si vino desde Settings y cancela, también volver
+                    if (appState.onboardingFromSettings) {
+                        appState.onboardingFromSettings = false
+                        appState.showSettings = true
+                    }
+                },
+            )
+        }
+
+        // ── Paywall ───────────────────────────────────────────────────────────
+
+        if (appState.showPaywall) {
+            DesktopPaywallWindow(
+                trialDaysLeft = trialDaysLeft,
+                onDismiss     = { appState.showPaywall = false },
             )
         }
 

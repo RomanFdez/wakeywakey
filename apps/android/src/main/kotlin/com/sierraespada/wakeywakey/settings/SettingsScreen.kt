@@ -192,6 +192,18 @@ fun SettingsScreen(
                 }
             }
 
+            // ── DEVELOPER ─────────────────────────────────────────────────
+            item { SectionHeader("Developer") }
+            item {
+                SettingsCard {
+                    SettingsToggleRow(
+                        label    = "Show debug bar",
+                        checked  = s.showDevBar,
+                        onToggle = vm::setShowDevBar,
+                    )
+                }
+            }
+
             // ── CALENDARS ─────────────────────────────────────────────────
             if (state.availableCalendars.isNotEmpty()) {
                 item { SectionHeader(stringResource(R.string.settings_section_calendars)) }

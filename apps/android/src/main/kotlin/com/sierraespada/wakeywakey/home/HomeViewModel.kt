@@ -27,6 +27,7 @@ data class HomeUiState(
     val events: List<CalendarEvent> = emptyList(),
     val nowMillis: Long             = System.currentTimeMillis(),
     val error: String?              = null,
+    val showDevBar: Boolean         = true,
 ) {
     val nextEvent: CalendarEvent?
         get() = events.firstOrNull { it.endTime > nowMillis }
@@ -62,9 +63,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             manualRepo.alerts.collect { silentReload() }
         }
 
-        // Re-render when settings change (filters, work hours, etc.)
+        // Re-render when settings change (filters, work hours, etc.) + sync showDevBar
         viewModelScope.launch {
-            settingsRepo.settings.drop(1).collect { silentReload() }
+            settingsRepo.settings.collect { s ->
+                _uiState.update { it.copy(showDevBar = s.showDevBar) }
+                silentReload()
+            }
         }
 
         // Re-render when Pro status changes (e.g. trial expires or purchase completes)

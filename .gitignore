@@ -37,3 +37,17 @@ xcuserdata/
 
 # Sentry Config File
 sentry.properties
+
+# Claude Code workspace state (local)
+.claude/
+
+# JVM crash logs
+hs_err_pid*.log
+replay_pid*.log
+
+# Android release artifacts (no se versionan)
+apps/android/release/
+apps/android/upload-cert.pem
+
+# Carpeta suelta de sonidos en raíz (los oficiales viven en apps/windows/src/jvmMain/resources/sounds/)
+/sounds/

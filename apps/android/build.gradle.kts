@@ -25,8 +25,8 @@ android {
         applicationId = "com.sierraespada.wakeywakey"
         minSdk        = 26          // Android 8.0 — cubre ~95 % de dispositivos activos
         targetSdk     = 35
-        versionCode   = 1
-        versionName   = "0.1.0"
+        versionCode   = 3
+        versionName   = "0.1.1"
 
         // Secrets inyectados como BuildConfig — nunca hardcodeados en el código
         buildConfigField("String", "SENTRY_DSN",           "\"${secret("SENTRY_DSN")}\"")
@@ -35,14 +35,24 @@ android {
         buildConfigField("String", "REVENUECAT_API_KEY",   "\"${secret("REVENUECAT_API_KEY")}\"")
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile     = rootProject.file(secret("KEYSTORE_PATH"))
+            storePassword = secret("KEYSTORE_PASSWORD")
+            keyAlias      = secret("KEY_ALIAS")
+            keyPassword   = secret("KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix   = "-debug"
         }
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled   = true
             isShrinkResources = true
+            signingConfig     = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

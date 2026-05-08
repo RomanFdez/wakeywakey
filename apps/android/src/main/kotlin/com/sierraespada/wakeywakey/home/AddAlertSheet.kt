@@ -12,10 +12,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sierraespada.wakeywakey.R
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -44,7 +46,7 @@ fun AddAlertSheet(
     }
     var pickedCal by remember { mutableStateOf(defaultCal.clone() as Calendar) }
 
-    val dateFmt = remember { SimpleDateFormat("EEE, MMM d yyyy", Locale.ENGLISH) }
+    val dateFmt = remember { SimpleDateFormat("EEE, MMM d yyyy", Locale.getDefault()) }
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
     ModalBottomSheet(
@@ -61,13 +63,13 @@ fun AddAlertSheet(
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("New alert", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+            Text(stringResource(R.string.add_alert_title), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
 
             // Title
             OutlinedTextField(
                 value         = title,
                 onValueChange = { title = it },
-                placeholder   = { Text("Title", color = Color.White.copy(alpha = 0.35f)) },
+                placeholder   = { Text(stringResource(R.string.add_alert_title_hint), color = Color.White.copy(alpha = 0.35f)) },
                 singleLine    = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier      = Modifier.fillMaxWidth(),
@@ -134,7 +136,7 @@ fun AddAlertSheet(
             OutlinedTextField(
                 value         = notes,
                 onValueChange = { notes = it },
-                placeholder   = { Text("Notes (optional)", color = Color.White.copy(alpha = 0.35f)) },
+                placeholder   = { Text(stringResource(R.string.add_alert_notes_hint), color = Color.White.copy(alpha = 0.35f)) },
                 minLines      = 3,
                 maxLines      = 5,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
@@ -154,7 +156,7 @@ fun AddAlertSheet(
                 shape    = RoundedCornerShape(14.dp),
                 colors   = ButtonDefaults.buttonColors(containerColor = Yellow, contentColor = Navy),
             ) {
-                Text("Schedule alert", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                Text(stringResource(R.string.add_alert_confirm), fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
             }
         }
     }

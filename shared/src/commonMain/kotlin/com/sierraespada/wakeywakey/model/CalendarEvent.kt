@@ -22,6 +22,10 @@ data class CalendarEvent(
      * (CalendarContract.Attendees.ATTENDEE_STATUS_*)
      */
     val selfAttendeeStatus: Int = 0,
+    /** Color ARGB del calendario al que pertenece el evento. Null = usar color por defecto. */
+    val calendarColor: Int? = null,
+    /** true si el evento es una instancia de una recurrencia (evento periódico). */
+    val isRecurring: Boolean = false,
 ) {
     /** Minutos que faltan para que empiece el evento. Negativo si ya empezó. */
     fun minutesUntilStart(now: Long = currentTimeMillis()): Long =

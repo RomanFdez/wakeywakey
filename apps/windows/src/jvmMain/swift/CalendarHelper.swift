@@ -13,6 +13,7 @@
 
 import Foundation
 import EventKit
+import AppKit
 
 let store = EKEventStore()
 let args  = CommandLine.arguments
@@ -52,7 +53,16 @@ let cmd = args[1]
 if cmd == "calendars" {
     let calendars = store.calendars(for: .event)
     for cal in calendars {
-        print("\(cal.title)|\(cal.calendarIdentifier)")
+        let colorHex: String = {
+            guard let c = cal.color.usingColorSpace(NSColorSpace.sRGB) else { return "" }
+            let r = Int(max(0, min(1, c.redComponent))   * 255)
+            let g = Int(max(0, min(1, c.greenComponent)) * 255)
+            let b = Int(max(0, min(1, c.blueComponent))  * 255)
+            return String(format: "%02X%02X%02X", r, g, b)
+        }()
+        // source.title da el nombre de cuenta: "Gmail", "iCloud", nombre de exchange, etc.
+        let accountName = cal.source?.title ?? "Calendar"
+        print("\(cal.title)|\(cal.calendarIdentifier)|\(colorHex)|\(accountName)")
     }
     exit(0)
 }
@@ -110,7 +120,15 @@ if cmd == "events" {
         // Sanitise pipe chars in text fields
         func clean(_ s: String) -> String { s.replacingOccurrences(of: "|", with: "｜")
                                               .replacingOccurrences(of: "\n", with: " ") }
-        print("\(clean(title))|\(startMs)|\(endMs)|\(clean(loc))|\(clean(url))|\(clean(calName))|\(calId)|\(allDay)")
+        let colorHex: String = {
+            guard let c = cal.color.usingColorSpace(NSColorSpace.sRGB) else { return "" }
+            let r = Int(max(0, min(1, c.redComponent))   * 255)
+            let g = Int(max(0, min(1, c.greenComponent)) * 255)
+            let b = Int(max(0, min(1, c.blueComponent))  * 255)
+            return String(format: "%02X%02X%02X", r, g, b)
+        }()
+        let recurring = ev.hasRecurrenceRules ? "true" : "false"
+        print("\(clean(title))|\(startMs)|\(endMs)|\(clean(loc))|\(clean(url))|\(clean(calName))|\(calId)|\(allDay)|\(colorHex)|\(recurring)")
     }
     exit(0)
 }

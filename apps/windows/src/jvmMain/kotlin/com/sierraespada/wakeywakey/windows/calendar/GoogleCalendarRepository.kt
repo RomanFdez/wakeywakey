@@ -188,12 +188,22 @@ class GoogleCalendarRepository : CalendarRepository {
                     selfAttendeeStatus = ev.attendees
                         ?.firstOrNull { it.self }
                         ?.toStatusInt() ?: 0,
+                    calendarColor      = cal.color,
+                    isRecurring        = ev.recurringEventId != null,
                 )
             }
     }
 
     override suspend fun getAvailableCalendars(): List<DeviceCalendar> {
         val token = validToken()
+        // Resuelve email: primero del StateFlow reactivo, luego token, luego API.
+        val accountEmail = run {
+            val cached = CalendarAccountManager.connectedEmail(PROVIDER)
+            if (!cached.isNullOrBlank()) return@run cached
+            val fetched = runCatching { fetchEmail(token) }.getOrElse { "" }
+            if (fetched.isNotBlank()) CalendarAccountManager.updateEmail(PROVIDER, fetched)
+            fetched.ifBlank { "Google" }
+        }
         val resp  = http.get("https://www.googleapis.com/calendar/v3/users/me/calendarList") {
             bearerAuth(token)
             parameter("minAccessRole", "reader")
@@ -207,7 +217,7 @@ class GoogleCalendarRepository : CalendarRepository {
                 DeviceCalendar(
                     id          = stableId,
                     name        = cal.summary.ifBlank { cal.id },
-                    accountName = cal.id,
+                    accountName = accountEmail,
                     color       = cal.backgroundColor?.hexToArgb() ?: 0xFF4285F4.toInt(),
                     isVisible   = true,
                 )
@@ -256,7 +266,9 @@ class GoogleCalendarRepository : CalendarRepository {
         }
 
         val isConfigured: Boolean
+            // Configurado si tiene credenciales O ya hay tokens guardados (reconexión)
             get() = runCatching { clientId; clientSecret; true }.getOrElse { false }
+                 || TokenStorage.load(PROVIDER) != null
 
         private fun credential(key: String, fromBuildConfig: () -> String?): String =
             fromBuildConfig()
@@ -291,6 +303,7 @@ class GoogleCalendarRepository : CalendarRepository {
     val end:         GoogleDateTime,
     val hangoutLink: String?              = null,
     val attendees:   List<GoogleAttendee>? = null,
+    @SerialName("recurringEventId") val recurringEventId: String? = null,
 )
 @Serializable private data class GoogleDateTime(
     val dateTime: String? = null,

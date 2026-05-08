@@ -142,7 +142,7 @@ class HomeViewModel(
                 fromMillis = now - 60 * 60_000L,
                 toMillis   = endOfWeek,
             )
-            val merged = (filtered + customEvents).sortedBy { it.startTime }
+            val merged = (filtered + customEvents).distinctBy { it.id }.sortedBy { it.startTime }
 
             _uiState.update {
                 it.copy(

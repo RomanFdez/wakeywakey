@@ -1,12 +1,15 @@
 package com.sierraespada.wakeywakey.windows.calendar
 
-import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.CompletableDeferred
-import java.net.InetSocketAddress
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.ServerSocket
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 /**
- * Servidor HTTP mínimo que escucha en localhost:PORT/callback y captura el
- * parámetro ?code= del redirect OAuth.
+ * Servidor HTTP mínimo usando [ServerSocket] estándar (sin APIs internas del JDK).
+ * Escucha en localhost:PORT/callback y captura el parámetro ?code= del redirect OAuth.
  *
  * Ciclo de vida:
  *  1. [start] — lanza el servidor en background
@@ -15,52 +18,72 @@ import java.net.InetSocketAddress
  */
 class OAuthCallbackServer(private val port: Int) {
 
-    private var server: HttpServer? = null
+    private var serverSocket: ServerSocket? = null
     private val deferred = CompletableDeferred<Result<String>>()
 
     val redirectUri: String get() = "http://localhost:$port/callback"
 
     fun start(): OAuthCallbackServer {
-        server = HttpServer.create(InetSocketAddress("localhost", port), 0).apply {
-            createContext("/callback") { exchange ->
-                val params = exchange.requestURI.query
-                    ?.split("&")
-                    ?.associate { p -> p.split("=", limit = 2).let { it[0] to (it.getOrNull(1) ?: "") } }
-                    ?: emptyMap()
+        val ss = ServerSocket(port)
+        serverSocket = ss
 
-                val code  = params["code"]
-                val error = params["error"]
+        Thread(null, {
+            runCatching {
+                val client = ss.accept()
+                client.use { socket ->
+                    val request = socket.getInputStream()
+                        .bufferedReader()
+                        .readLine() ?: ""
 
-                val (status, html) = when {
-                    code  != null -> {
-                        deferred.complete(Result.success(code))
-                        200 to SUCCESS_HTML
+                    // GET /callback?code=xxx&state=yyy HTTP/1.1
+                    val query = request
+                        .removePrefix("GET /callback?")
+                        .substringBefore(" HTTP")
+                        .takeIf { it.isNotBlank() && it != "GET /callback" }
+
+                    val params = query
+                        ?.split("&")
+                        ?.associate { p ->
+                            p.split("=", limit = 2).let { parts ->
+                                parts[0] to URLDecoder.decode(parts.getOrNull(1) ?: "", StandardCharsets.UTF_8)
+                            }
+                        }
+                        ?: emptyMap()
+
+                    val code  = params["code"]
+                    val error = params["error"]
+                    System.err.println("OAuthCallback: code=${code?.take(20)}... error=$error params=${params.keys}")
+
+                    val (status, html) = when {
+                        code  != null -> { deferred.complete(Result.success(code));                          200 to SUCCESS_HTML }
+                        error != null -> { deferred.complete(Result.failure(Exception("OAuth error: $error"))); 400 to ERROR_HTML   }
+                        else          -> { deferred.complete(Result.failure(Exception("No code in callback"))); 400 to ERROR_HTML   }
                     }
-                    error != null -> {
-                        deferred.complete(Result.failure(Exception("OAuth error: $error")))
-                        400 to ERROR_HTML
-                    }
-                    else -> {
-                        deferred.complete(Result.failure(Exception("No code in callback")))
-                        400 to ERROR_HTML
+
+                    val body    = html.toByteArray()
+                    val headers = "HTTP/1.1 $status OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n"
+                    socket.getOutputStream().let { out ->
+                        out.write(headers.toByteArray())
+                        out.write(body)
+                        out.flush()
                     }
                 }
-
-                val bytes = html.toByteArray()
-                exchange.sendResponseHeaders(status, bytes.size.toLong())
-                exchange.responseBody.use { it.write(bytes) }
+            }.onFailure { e ->
+                if (!deferred.isCompleted) deferred.complete(Result.failure(e))
             }
-            executor = null   // use default single-thread executor
-            start()
-        }
+            runCatching { ss.close() }
+        }, "oauth-callback-server").also { it.isDaemon = true }.start()
+
         return this
     }
 
-    suspend fun awaitCode(): String = deferred.await().getOrThrow()
+    suspend fun awaitCode(): String = withContext(Dispatchers.IO) {
+        deferred.await().getOrThrow()
+    }
 
     fun stop() {
-        server?.stop(0)
-        server = null
+        runCatching { serverSocket?.close() }
+        serverSocket = null
     }
 
     companion object {

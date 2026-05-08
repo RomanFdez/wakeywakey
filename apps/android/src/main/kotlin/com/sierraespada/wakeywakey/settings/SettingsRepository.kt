@@ -48,6 +48,7 @@ class SettingsRepository(context: Context) {
                     ?.split(",")?.mapNotNull { it.toIntOrNull() }?.toSet()
                     ?: setOf(2, 3, 4, 5, 6),
                 pausedUntil        = prefs[Keys.PAUSED_UNTIL],
+                showDevBar         = prefs[Keys.SHOW_DEV_BAR] ?: true,
             )
         }
 
@@ -86,6 +87,9 @@ class SettingsRepository(context: Context) {
 
     suspend fun setShowAllDayEvents(value: Boolean) =
         store.edit { it[Keys.SHOW_ALL_DAY] = value }
+
+    suspend fun setShowDevBar(value: Boolean) =
+        store.edit { it[Keys.SHOW_DEV_BAR] = value }
 
     // ── Pause ──────────────────────────────────────────────────────────────────
 
@@ -161,5 +165,6 @@ class SettingsRepository(context: Context) {
         val SCHEDULED_IDS        = stringPreferencesKey("scheduled_alarm_ids")
         val PAUSED_UNTIL         = longPreferencesKey("paused_until")
         val INSTALL_DATE         = longPreferencesKey("install_date")
+        val SHOW_DEV_BAR         = booleanPreferencesKey("show_dev_bar")
     }
 }

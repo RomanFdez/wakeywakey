@@ -6,94 +6,169 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Gestiona la cuenta de calendario activa (Google o Microsoft).
+ * Gestiona las cuentas de calendario activas (Google y/o Microsoft).
+ *
+ * Soporte multi-cuenta: Google y Microsoft pueden estar conectados simultáneamente.
+ * Los eventos se combinan en [CombinedCalendarRepository].
  *
  * Estado:
- *  - [activeProvider] — "google" | "microsoft" | null (sin conectar)
- *  - [activeRepo]     — implementación de [CalendarRepository] lista para usar
- *
- * Al arrancar detecta automáticamente si hay tokens guardados.
+ *  - [activeProviders] — conjunto de providers conectados ("google", "microsoft")
+ *  - [activeRepos]     — lista de repositorios listos para usar
+ *  - [connectedEmails] — emails reactivos por provider; se actualiza en background
+ *                        cuando los repositorios obtienen los calendarios.
  */
 object CalendarAccountManager {
 
     // ── Estado observable ──────────────────────────────────────────────────────
 
-    private val _activeProvider = MutableStateFlow<String?>(null)
-    val activeProvider: StateFlow<String?> = _activeProvider.asStateFlow()
+    private val _activeProviders = MutableStateFlow<Set<String>>(emptySet())
+    val activeProviders: StateFlow<Set<String>> = _activeProviders.asStateFlow()
 
-    /** Repositorio listo para usar; null si no hay cuenta conectada. */
-    private val _activeRepo = MutableStateFlow<CalendarRepository?>(null)
-    val activeRepo: StateFlow<CalendarRepository?> = _activeRepo.asStateFlow()
+    private val _activeRepos = MutableStateFlow<List<CalendarRepository>>(emptyList())
+    val activeRepos: StateFlow<List<CalendarRepository>> = _activeRepos.asStateFlow()
 
-    val isConnected: Boolean get() = _activeProvider.value != null
+    /**
+     * Emails por provider. Reactivo: se actualiza cuando el repositorio resuelve
+     * el email (p.ej. después de [getAvailableCalendars] o al conectar).
+     * Usar en UI con [collectAsState] para que se recomponga automáticamente.
+     */
+    private val _connectedEmails = MutableStateFlow<Map<String, String>>(emptyMap())
+    val connectedEmails: StateFlow<Map<String, String>> = _connectedEmails.asStateFlow()
+
+    /** Repo combinado listo para usar; null si ninguna cuenta conectada. */
+    val combinedRepo: CalendarRepository?
+        get() = _activeRepos.value.let { repos ->
+            when {
+                repos.isEmpty() -> null
+                repos.size == 1 -> repos.first()
+                else            -> CombinedCalendarRepository(repos)
+            }
+        }
+
+    val isConnected: Boolean get() = _activeProviders.value.isNotEmpty()
+
+    fun isProviderConnected(provider: String): Boolean = provider in _activeProviders.value
 
     // ── Init ───────────────────────────────────────────────────────────────────
 
     init {
-        // Detecta tokens guardados al arrancar la app
         restoreFromStorage()
     }
 
     private fun restoreFromStorage() {
-        val tokens = TokenStorage.loadAny() ?: return
-        setProvider(tokens.provider)
+        val providers = mutableSetOf<String>()
+        val repos     = mutableListOf<CalendarRepository>()
+        val emails    = mutableMapOf<String, String>()
+
+        TokenStorage.load(GoogleCalendarRepository.PROVIDER)?.let { token ->
+            providers += GoogleCalendarRepository.PROVIDER
+            repos     += GoogleCalendarRepository()
+            if (token.accountEmail.isNotBlank()) emails[GoogleCalendarRepository.PROVIDER] = token.accountEmail
+        }
+        TokenStorage.load(MicrosoftCalendarRepository.PROVIDER)?.let { token ->
+            providers += MicrosoftCalendarRepository.PROVIDER
+            repos     += MicrosoftCalendarRepository()
+            if (token.accountEmail.isNotBlank()) emails[MicrosoftCalendarRepository.PROVIDER] = token.accountEmail
+        }
+
+        _activeProviders.value  = providers
+        _activeRepos.value      = repos
+        _connectedEmails.value  = emails
     }
 
     // ── Conexión de cuentas ────────────────────────────────────────────────────
 
-    /**
-     * Inicia el flujo OAuth para Google Calendar.
-     * Suspende hasta que el usuario completa el consentimiento.
-     * @throws IllegalStateException si GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET no están configurados.
-     */
+    /** Inicia OAuth para Google Calendar. Añade al conjunto de providers activos. */
     suspend fun connectGoogle(): OAuthTokens {
         val repo   = GoogleCalendarRepository()
-        val tokens = repo.authorize()           // abre browser + espera redirect
-        setProvider(GoogleCalendarRepository.PROVIDER, repo)
+        val tokens = repo.authorize()
+        addProvider(GoogleCalendarRepository.PROVIDER, repo)
+        // El email viene en el token recién guardado
+        if (tokens.accountEmail.isNotBlank()) {
+            _connectedEmails.value = _connectedEmails.value + (GoogleCalendarRepository.PROVIDER to tokens.accountEmail)
+        }
         return tokens
     }
 
-    /**
-     * Inicia el flujo OAuth para Microsoft / Outlook.
-     * Suspende hasta que el usuario completa el consentimiento.
-     * @throws IllegalStateException si MICROSOFT_CLIENT_ID no está configurado.
-     */
+    /** Inicia OAuth para Microsoft / Outlook. Añade al conjunto de providers activos. */
     suspend fun connectMicrosoft(): OAuthTokens {
         val repo   = MicrosoftCalendarRepository()
         val tokens = repo.authorize()
-        setProvider(MicrosoftCalendarRepository.PROVIDER, repo)
+        addProvider(MicrosoftCalendarRepository.PROVIDER, repo)
+        if (tokens.accountEmail.isNotBlank()) {
+            _connectedEmails.value = _connectedEmails.value + (MicrosoftCalendarRepository.PROVIDER to tokens.accountEmail)
+        }
         return tokens
     }
 
-    /** Desconecta la cuenta activa y borra los tokens guardados. */
+    /** Desconecta un proveedor específico y borra sus tokens. */
+    fun disconnect(provider: String) {
+        TokenStorage.clear(provider)
+        val newProviders = _activeProviders.value - provider
+        val newRepos     = _activeRepos.value.filter {
+            when (provider) {
+                GoogleCalendarRepository.PROVIDER    -> it !is GoogleCalendarRepository
+                MicrosoftCalendarRepository.PROVIDER -> it !is MicrosoftCalendarRepository
+                else -> true
+            }
+        }
+        _activeProviders.value  = newProviders
+        _activeRepos.value      = newRepos
+        _connectedEmails.value  = _connectedEmails.value - provider
+    }
+
+    /** Desconecta TODOS los providers (retrocompatibilidad). */
     fun disconnect() {
-        _activeProvider.value?.let { TokenStorage.clear(it) }
-        _activeProvider.value = null
-        _activeRepo.value     = null
+        _activeProviders.value.forEach { TokenStorage.clear(it) }
+        _activeProviders.value  = emptySet()
+        _activeRepos.value      = emptyList()
+        _connectedEmails.value  = emptyMap()
+    }
+
+    /**
+     * Llamado por los repositorios cuando resuelven el email en background
+     * (p.ej. durante [getAvailableCalendars]). Actualiza el StateFlow reactivo
+     * y persiste el email en el token si aún no estaba guardado.
+     */
+    fun updateEmail(provider: String, email: String) {
+        if (email.isBlank()) return
+        // Actualiza el StateFlow → la UI se recompone automáticamente
+        _connectedEmails.value = _connectedEmails.value + (provider to email)
+        // Persiste en el token si falta
+        val stored = TokenStorage.load(provider) ?: return
+        if (stored.accountEmail.isBlank()) {
+            TokenStorage.save(stored.copy(accountEmail = email))
+        }
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
-    private fun setProvider(provider: String, repo: CalendarRepository? = null) {
-        _activeProvider.value = provider
-        _activeRepo.value     = repo ?: when (provider) {
-            GoogleCalendarRepository.PROVIDER    -> GoogleCalendarRepository()
-            MicrosoftCalendarRepository.PROVIDER -> MicrosoftCalendarRepository()
-            else -> null
+    private fun addProvider(provider: String, repo: CalendarRepository) {
+        val currentRepos = _activeRepos.value.filter {
+            when (provider) {
+                GoogleCalendarRepository.PROVIDER    -> it !is GoogleCalendarRepository
+                MicrosoftCalendarRepository.PROVIDER -> it !is MicrosoftCalendarRepository
+                else -> true
+            }
         }
+        _activeProviders.value = _activeProviders.value + provider
+        _activeRepos.value     = currentRepos + repo
     }
 
     // ── Info de cuenta ─────────────────────────────────────────────────────────
 
-    /** Email de la cuenta conectada, o null si no hay. */
-    val connectedEmail: String?
-        get() = _activeProvider.value?.let { TokenStorage.load(it)?.accountEmail }
+    /** Email de un provider (snapshot no reactivo — preferir [connectedEmails] en UI). */
+    fun connectedEmail(provider: String): String? =
+        _connectedEmails.value[provider]?.takeIf { it.isNotBlank() }
+            ?: TokenStorage.load(provider)?.accountEmail?.takeIf { it.isNotBlank() }
 
-    /** true si Google Calendar puede iniciar OAuth (credenciales configuradas). */
+    /** Email de cualquier cuenta conectada (retrocompatibilidad). */
+    val connectedEmail: String?
+        get() = _activeProviders.value.firstOrNull()?.let { connectedEmail(it) }
+
     val canConnectGoogle: Boolean
         get() = GoogleCalendarRepository.isConfigured
 
-    /** true si Microsoft Calendar puede iniciar OAuth (credenciales configuradas). */
     val canConnectMicrosoft: Boolean
         get() = MicrosoftCalendarRepository.isConfigured
 }

@@ -62,7 +62,7 @@
 
 **Recomendación:** **Opción A (Kotlin Multiplatform)** — el roadmap siguiente asume esta.
 
-> **Nota:** KMP soporta iOS y macOS de serie (Kotlin/Native + Compose Multiplatform). Las fases iOS y macOS se añaden al final del roadmap — mismo codebase, sin cambio de stack.
+> **Nota:** KMP soporta iOS y macOS de serie (Kotlin/Native + Compose Multiplatform). **macOS se trabaja junto con Windows en la Fase 5** (mismo binario JVM Compose for Desktop). iOS queda diferido a Fase 8.
 
 ### Backend
 - **Supabase** (Postgres + Auth + Realtime + Edge Functions) — mejor DX que Firebase y más portable
@@ -265,23 +265,38 @@
    - ~~`purchase_restored`~~
    - ~~Todos los eventos llegan a PostHog vía `AnalyticsProvider`~~
 
-> ✅ **Fase 2 completada — 2026-04-30** (pendiente: conexión RevenueCat ↔ Google Play bloqueada por verificación cuenta de pagos — reanudar cuando llegue el ingreso de prueba de Google)
+8. ~~**LemonSqueezy (monetización Desktop)**~~ → ✅ **completo (2026-05-08)**
+   - Productos creados en LemonSqueezy (planes desktop)
+   - Checkout integrado en la app desktop
+   - Activación de licencia automática + manual (introducir clave)
+   - Deactivación por dispositivo (control de instalaciones por licencia)
+   - Reemplaza/complementa RevenueCat para Windows + macOS (RevenueCat sigue para Android)
+
+> ✅ **Fase 2 completada — 2026-04-30 / 2026-05-08** (Android via RevenueCat + Desktop via LemonSqueezy. RevenueCat ↔ Google Play sigue pendiente verificación cuenta de pagos.)
 
 ---
 
 ### 🚀 Fase 3 — Launch Android (2-4 semanas)
-1. **ASO (App Store Optimization) internacional:**
+> 🚧 **En curso — prueba interna abierta (2026-05-08).** Falta ASO completo, beta abierta y paso a producción.
+
+1. ~~**Subida inicial a Play Console:**~~ → ✅ (2026-05-08)
+   - AAB firmado subido a Play Console
+   - **Prueba interna abierta** (canal Internal Testing activo)
+   - Sección de seguridad de datos completada
+   - Política de privacidad enlazada (sierraespada.com/privacy)
+2. **ASO (App Store Optimization) internacional:** → ⏳ pendiente
    - Keywords research en EN, ES, PT, DE, FR
    - Título, descripción corta/larga, capturas localizadas
    - Ficha Play Store en 5+ idiomas
-2. **Beta abierta** en Play Store (open testing).
-3. Iterar con feedback.
-4. **Launch coordinado:**
+3. **Beta abierta** (open testing) → ⏳ pendiente — paso siguiente tras pulir con prueba interna.
+4. **Producción Play Store** → ⏳ pendiente — pasar de Internal Testing → Production.
+5. Iterar con feedback.
+6. **Launch coordinado** (con Windows + macOS + web):
    - Product Hunt (martes o miércoles, 00:01 PST)
    - HackerNews "Show HN"
    - Reddit: r/ADHD, r/productivity, r/remotework, r/android
    - LinkedIn / X threads
-5. **Press kit** en la web (siguiendo patrón impresskit.net).
+7. **Press kit** en la web (siguiendo patrón impresskit.net).
 
 ---
 
@@ -301,38 +316,57 @@
 
 ---
 
-### 🖥️ Fase 5 — Windows (6-8 semanas)
-> 🚧 **En curso — Slices 5.1–5.4 completados (2026-05-06).** Falta sync Supabase, publicación OAuth Google y pulido final.
+### 🖥️ Fase 5 — Desktop: Windows + macOS (6-8 semanas)
+> 🚧 **En curso — Slices 5.1–5.6 completados (2026-05-08).**
+> Mismo codebase Compose for Desktop sirve a Windows y macOS. macOS DMG firmado y notarizando ahora; Windows pendiente de firma Authenticode.
 
-1. ~~**Port a Compose for Desktop** reutilizando `/shared`.~~ → ✅ **Slice 5.1 (app shell)**
-2. Diferencias clave Windows:
-   - ~~Calendarios: integración con **Microsoft Graph API** (Outlook/365) + **Google Calendar API** directa (OAuth).~~ → ✅ **Slice 5.2**
-   - ~~Alerta full-screen: ventana topmost, borderless, que tapa el monitor donde está el ratón (igual que IYF).~~ → ✅ (`AlertWindow` + `DesktopAlertScreen`, sonido vía `SoundPlayer`)
-   - ~~Icono en **system tray** con próximos eventos.~~ → ✅ (`AwtTrayManager` + `tray/`)
-   - ~~Auto-start al iniciar Windows.~~ → ✅ **Slice 5.3**
-3. **Distribución:** → ✅ **Slice 5.4 (CI/CD MSI/EXE + code signing opcional)**
-   - `.msix` para **Microsoft Store** (mejor confianza) — pendiente publicación
-   - Instalador `.exe`/`.msi` directo (mayor flexibilidad, mejor margen) — pipeline listo
-   - Code signing configurable (cert opcional, ~$200/año EV cuando se compre).
-4. **Sync de settings con la cuenta (Supabase).** → ⏳ pendiente
-5. ⚠️ **Pendiente: Publicar app OAuth de Google** — actualmente en modo "Testing" (solo usuarios añadidos manualmente pueden autenticarse). Para distribución pública:
-   - Google Cloud Console → Google Auth Platform → Público → cambiar a "Producción"
-   - Enviar app a verificación de Google (requiere política de privacidad, dominio verificado, vídeo demo del flujo OAuth)
-   - Proceso puede tardar varios días/semanas
-   - Alternativa: mantener "Testing" durante beta interna (máx. 100 usuarios de prueba)
-6. **Pulido reciente (no commiteado aún, 2026-05-06):**
-   - Icono vectorial resolution-independent (Retina/HiDPI) + Metal renderer
-   - `BuildConfig` para credenciales (no hardcodeadas)
-   - `CustomEventsRepository` (alertas manuales en desktop)
-   - `SetupWizardWindow` (onboarding desktop)
-   - Switches más finos en Settings desktop
-7. **Asomo a macOS:** ya hay `MacSystemCalendarRepository` y `macos-entitlements.plist` — material para arrancar Fase macOS sin cambio de stack.
+1. ~~**Port a Compose for Desktop** reutilizando `/shared`.~~ → ✅ **Slice 5.1 (app shell)** — corre en Windows y macOS con la misma base JVM.
+2. **Calendarios:**
+   - ~~**Microsoft Graph API** (Outlook/365) + **Google Calendar API** directa (OAuth) — funciona en Windows y macOS.~~ → ✅ **Slice 5.2**
+   - ~~**Calendar.app nativo (macOS)** vía EventKit — `MacSystemCalendarRepository` + `CalendarHelper.swift` compilado a binario arm64 e inyectado en `WakeyWakey.app/Contents/MacOS/`.~~ → ✅ (2026-05-06)
+   - ~~**Multi-cuenta** (`CombinedCalendarRepository`): fusiona en paralelo Google + Microsoft + macOS con dedup por título+startTime.~~ → ✅ **Slice 5.5** (2026-05-07)
+   - ~~**Cuenta Microsoft real configurada** (`sierradelaespada@outlook.com`) — Outlook + Microsoft Graph integrados y verificados end-to-end.~~ → ✅ (2026-05-07)
+   - ~~`CalendarAccountManager`: gestión multi-cuenta (alta/baja/refresh tokens, color por cuenta).~~ → ✅
+   - ~~`OAuthCallbackServer` mejorado: maneja flujos Google y Microsoft sobre el mismo loopback.~~ → ✅
+3. **Alertas y UI:**
+   - ~~Alerta full-screen: ventana topmost, borderless, sobre el monitor activo (`AlertWindow` + `DesktopAlertScreen`).~~ → ✅
+   - ~~Sonido de alerta (`SoundPlayer`) + **pack de 15 sonidos incluidos** (boxing-ring, call-to-attention, clock-alarm, coin, level-up, metal-spring, notifications 1-5, punch, referee-whistle, service-bell, whistle).~~ → ✅ (2026-05-07)
+   - ~~Icono en **system tray / menu bar** con próximos eventos (`AwtTrayManager` + `tray/`).~~ → ✅
+   - ~~Auto-start al iniciar el sistema.~~ → ✅ **Slice 5.3** (Windows registry + macOS LaunchAgent)
+   - ~~`SetupWizardWindow`: onboarding desktop unificado.~~ → ✅
+   - ~~Alertas manuales (`CustomEventsRepository`) — paridad con Android.~~ → ✅
+4. **Distribución:** → 🚧 **Slice 5.4 + 5.6 (2026-05-08)**
+   - **Build release sin barra dev** (`-Prelease`) — flag de Gradle que oculta la dev toolbar para builds de distribución. ✅
+   - **Windows:** `.msi` / `.exe` — pipeline listo. `.msix` para Microsoft Store pendiente publicación. Code signing Authenticode pendiente (cert EV ~$200/año cuando se compre).
+   - **macOS:**
+     - `.dmg` con jpackage (Temurin 25) ✅
+     - Entitlements + Info.plist con `NSCalendarsFullAccessUsageDescription`, `NSAppleEventsUsageDescription` ✅
+     - **Apple Developer Program** activo ($99/año) ✅ (2026-05-08)
+     - **DMG firmado con Developer ID** ✅ (2026-05-08)
+     - **Notarización Apple** ✅ (2026-05-08, submission `4728c07f-ab62-47cd-8e24-57b31ba41064`, status Accepted)
+     - **Stapler aplicado** ✅ (`spctl: source=Notarized Developer ID — accepted`)
+     - 📋 Subir DMG a sitio de descarga (decisión pendiente: sierraespada.com vs Gumroad)
+5. **Iconos:**
+   - ~~Windows: vectorial resolution-independent (HiDPI) + Metal renderer.~~ → ✅
+   - ~~macOS: `WakeyWakey.icns` + `icon.iconset` (16→1024 + @2x).~~ → ✅
+6. **Sync de settings con la cuenta (Supabase).** → ⏳ pendiente
+7. ~~**Publicar app OAuth de Google**~~ → ✅ **completo (2026-05-08)** — pasada de "Testing" a Producción y verificada por Google. Cualquier usuario puede autenticar Google Calendar sin estar en lista blanca.
+8. **Pendiente macOS:**
+   - ~~Notarización del `.dmg`~~ ✅ Accepted (2026-05-08)
+   - ~~Stapler del ticket~~ ✅ aplicado (2026-05-08)
+   - 📋 Subir DMG firmado+notarizado a sierraespada.com (descarga directa)
+   - 📋 Decidir Mac App Store vs distribución directa (App Store exige sandbox y comisión 15-30%; distribución directa más sencilla con DMG notarizado)
+9. **Pendiente Windows:**
+   - Firma Authenticode con cert EV (~$200/año) — cuando se compre el cert
+   - Decidir: distribución directa (.msi/.exe firmados) y/o Microsoft Store (.msix)
 
 ---
 
 ### 🌐 Fase 6 — Web SierraEspada (iniciar en Fase 0, lista antes de Fase 3)
 
 **Objetivo:** web corporativa de SierraEspada que presenta WakeyWakey y sirve como hub de producto, legal y marketing. Es el único dominio necesario (sierraespada.com).
+
+**Estado:** ✅ **Dominio sierraespada.com verificado (2026-05-08)** — pendiente landing/marketing.
 
 **Stack:** Astro + Tailwind CSS · Deploy en Vercel · i18n EN + ES desde v1.
 
@@ -474,7 +508,7 @@ Opcional: versión web (PWA). Limitaciones (no puede mostrar fullscreen si pesta
 
 ### Plan Free — "WakeyWakey Lite"
 - 1 calendario conectado
-- Hasta **5 alertas/día**
+- Hasta **3 alertas/día**
 - Tema claro + oscuro (sin colorido)
 - Sin sync entre dispositivos
 - Sin integraciones terceros
@@ -482,9 +516,9 @@ Opcional: versión web (PWA). Limitaciones (no puede mostrar fullscreen si pesta
 - **Sin anuncios** (los anuncios degradan la percepción premium)
 
 ### Plan Pro (individual)
-- **€2.99 / mes**
-- **€24.99 / año** (Best Value, -30%)
-- **€49 lifetime** (one-time, llamativo para recelosos de subs)
+- **€1.99 / mes**
+- **€14.99 / año** (Best Value, ~37% de descuento)
+- **€59 lifetime** (one-time, llamativo para recelosos de subs)
 - Alertas ilimitadas
 - Calendarios ilimitados
 - Todos los temas + themes personalizados
@@ -516,10 +550,9 @@ Opcional: versión web (PWA). Limitaciones (no puede mostrar fullscreen si pesta
 > Los precios base están pensados para USA/UK. Para España y Europa del Sur
 > el poder adquisitivo es diferente y los precios actuales pueden ser una barrera.
 > Ejemplos orientativos a revisar:
-> - Pro mensual: $2.99 USA → ~€1.99 ES
-> - Pro anual: $24.99 USA → ~€14.99 ES
-> - Lifetime: $49 USA → ~€29 ES
-> - Desktop one-time: $39 USA → ~€24 ES
+> - Pro mensual: €1.99 base → ajustar por región
+> - Pro anual: €14.99 base → ajustar por región
+> - Lifetime: €59 base → ajustar por región (India/Brasil/etc: -50%)
 >
 > Herramientas: RevenueCat tiene precios por país para Android/iOS.
 > LemonSqueezy/Paddle permiten precios por moneda para desktop.
@@ -592,4 +625,4 @@ Opcional: versión web (PWA). Limitaciones (no puede mostrar fullscreen si pesta
 
 ---
 
-*Documento vivo. Última actualización: 2026-05-06.*
+*Documento vivo. Última actualización: 2026-05-08.*

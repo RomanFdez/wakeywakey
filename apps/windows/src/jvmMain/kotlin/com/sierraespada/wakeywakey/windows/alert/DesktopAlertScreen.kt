@@ -46,7 +46,11 @@ fun DesktopAlertScreen(
     onJoin:              () -> Unit,
     onSnooze:            (delayMillis: Long) -> Unit,
     onDismiss:           () -> Unit,
+    onUpgrade:           () -> Unit = {},
 ) {
+    val isPro     by com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager.isPro.collectAsState()
+    val isTrial   = com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager.isTrialActive
+    val allowCustomSnooze = isPro || isTrial
     var secondsLeft by remember { mutableLongStateOf((startTime - System.currentTimeMillis()) / 1000L) }
     LaunchedEffect(startTime) {
         while (secondsLeft > -60) {
@@ -99,14 +103,20 @@ fun DesktopAlertScreen(
         ) {
             Text("⏰", fontSize = 64.sp, modifier = Modifier.scale(scale))
 
-            // Title — auto-size
+            // Title — tamaño adaptativo según longitud
+            val titleFontSize = when {
+                title.length > 60 -> 22.sp
+                title.length > 35 -> 28.sp
+                else              -> 34.sp
+            }
             Text(
                 text       = title,
-                fontSize   = 36.sp,
+                fontSize   = titleFontSize,
                 fontWeight = FontWeight.ExtraBold,
                 color      = Color.White,
                 textAlign  = TextAlign.Center,
-                maxLines   = 3,
+                lineHeight = titleFontSize * 1.25f,
+                maxLines   = 4,
                 overflow   = TextOverflow.Ellipsis,
             )
 
@@ -152,7 +162,9 @@ fun DesktopAlertScreen(
             // Snooze row
             DesktopSnoozeRow(
                 onSnooze          = onSnooze,
+                showCustom        = allowCustomSnooze,
                 onCustomRequested = { showSnoozeDialog = true },
+                onUpgrade         = onUpgrade,
             )
 
             // Dismiss
@@ -204,20 +216,20 @@ private fun CountdownText(secondsLeft: Long, minutesOnly: Boolean = false) {
 @Composable
 private fun DesktopSnoozeRow(
     onSnooze:          (Long) -> Unit,
+    showCustom:        Boolean = true,
     onCustomRequested: () -> Unit,
+    onUpgrade:         () -> Unit = {},
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
         verticalAlignment     = Alignment.CenterVertically,
     ) {
-        Text(
-            "Snooze:",
-            fontSize = 13.sp,
-            color    = Color.White.copy(alpha = 0.5f),
-        )
-        SnoozeChip("1 min")  { onSnooze(60_000L) }
-        SnoozeChip("5 min")  { onSnooze(5 * 60_000L) }
-        SnoozeChip("Custom…") { onCustomRequested() }
+        Text("Snooze:", fontSize = 13.sp, color = Color.White.copy(alpha = 0.5f))
+        SnoozeChip("1 min") { onSnooze(60_000L) }
+        SnoozeChip("5 min") { onSnooze(5 * 60_000L) }
+        if (showCustom) {
+            SnoozeChip("Custom…") { onCustomRequested() }
+        }
     }
 }
 

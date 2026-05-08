@@ -28,6 +28,7 @@ import com.sierraespada.wakeywakey.model.CalendarEvent
 import com.sierraespada.wakeywakey.windows.PlatformMode
 import com.sierraespada.wakeywakey.windows.calendar.CustomEventsRepository
 import com.sierraespada.wakeywakey.windows.home.HomeUiState
+import com.sierraespada.wakeywakey.windows.settings.DesktopSettingsRepository
 import java.awt.Desktop
 import java.awt.GraphicsEnvironment
 import java.awt.event.WindowAdapter
@@ -43,7 +44,7 @@ private val NavySurface = Color(0xFF16213E)
 private val Coral       = Color(0xFFFF6B6B)
 private val Green       = Color(0xFF4CAF50)
 
-private val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+private val timeFmt = SimpleDateFormat("HH:mm", Locale.ENGLISH)
 
 /**
  * Popup del tray al estilo IYF:
@@ -66,6 +67,9 @@ fun TrayMenuWindow(
     onQuit:           () -> Unit,
     onDismiss:        () -> Unit,
     showDevBar:       Boolean          = true,
+    isPro:            Boolean          = false,
+    trialDaysLeft:    Int              = 30,
+    onUpgrade:        () -> Unit       = {},
     // Debug
     onDebugPreview:   () -> Unit      = {},
     onDebugAlarm5s:   () -> Unit      = {},
@@ -100,7 +104,9 @@ fun TrayMenuWindow(
     var showAll       by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
 
-    val now = homeState.nowMillis
+    val now      = homeState.nowMillis
+    val isFree   = !isPro && trialDaysLeft <= 0
+    val settings by DesktopSettingsRepository.settings.collectAsState()
 
     // Agrupación por fecha: hoy, mañana, día específico
     data class EventGroup(val label: String, val events: List<CalendarEvent>)
@@ -109,25 +115,26 @@ fun TrayMenuWindow(
         val todayCal    = Calendar.getInstance()
         val tomorrowCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
         val weekLimitMs = todayCal.timeInMillis + 7L * 24 * 60 * 60 * 1000
-        val dayFmt      = SimpleDateFormat("EEEE, d MMM", Locale.getDefault())
+        val dayFmt      = SimpleDateFormat("EEEE, d MMM", Locale.ENGLISH)
 
         fun dayKey(millis: Long): String {
             val c = Calendar.getInstance().apply { timeInMillis = millis }
             return when {
                 c.get(Calendar.YEAR) == todayCal.get(Calendar.YEAR) &&
-                c.get(Calendar.DAY_OF_YEAR) == todayCal.get(Calendar.DAY_OF_YEAR) -> "Hoy"
+                c.get(Calendar.DAY_OF_YEAR) == todayCal.get(Calendar.DAY_OF_YEAR) -> "Today"
                 c.get(Calendar.YEAR) == tomorrowCal.get(Calendar.YEAR) &&
-                c.get(Calendar.DAY_OF_YEAR) == tomorrowCal.get(Calendar.DAY_OF_YEAR) -> "Mañana"
+                c.get(Calendar.DAY_OF_YEAR) == tomorrowCal.get(Calendar.DAY_OF_YEAR) -> "Tomorrow"
                 else -> dayFmt.format(Date(millis))
                     .replaceFirstChar { it.uppercase() }
             }
         }
 
         val filtered = homeState.events
+            .distinctBy { it.id }           // evitar duplicados antes de agrupar
             .filter { it.endTime > now }
             .let { all ->
                 if (showAll) all.filter { it.startTime < weekLimitMs }.take(30)
-                else all.filter { dayKey(it.startTime) == "Hoy" }
+                else all.filter { dayKey(it.startTime) == "Today" }
             }
 
         filtered
@@ -149,61 +156,81 @@ fun TrayMenuWindow(
         resizable      = false,
         title          = "",
     ) {
-        // Cierra el popup al perder activación o al hacer clic fuera.
-        // Estrategia combinada:
-        //  1. Grace period de 800 ms — macOS necesita tiempo para estabilizar el foco
-        //     tras abrir la ventana; durante ese tiempo ignoramos eventos de foco.
-        //  2. windowDeactivated / windowLostFocus — se disparan cuando el usuario
-        //     cambia a otra app (Cmd+Tab, clic en otra ventana del SO, etc.).
-        //  3. AWTEventListener global — captura clics dentro del mismo proceso JVM
-        //     que queden fuera de los límites del popup (p.ej., otras ventanas propias).
+        // ── Cierre automático al perder foco ──────────────────────────────────
+        //
+        // Problema macOS: al hacer clic en el tray desde otra app el proceso JVM
+        // NO es la app activa → windowDeactivated/windowLostFocus nunca se disparan.
+        //
+        // Solución en 3 pasos:
+        //  1. Activar el proceso JVM con `/usr/bin/open <bundle>` (sin permisos).
+        //     Una vez activo, macOS envía eventos de foco normalmente.
+        //  2. Grace period amplio (1 s) para que `open` complete la activación.
+        //  3. Polling de KeyboardFocusManager.activeWindow: cuando deja de ser
+        //     nuestra ventana → cerrar.
         DisposableEffect(Unit) {
+            // Paso 1 — activar la app JVM en macOS usando /usr/bin/open
+            if (isMac) {
+                try {
+                    val cmd = ProcessHandle.current().info().command().orElse("")
+                    val dotApp = ".app"
+                    val idx = cmd.indexOf("$dotApp/Contents/")
+                    val bundlePath = if (idx >= 0) cmd.substring(0, idx + dotApp.length) else null
+                    if (bundlePath != null) {
+                        ProcessBuilder("/usr/bin/open", bundlePath).start()
+                    } else {
+                        // Dev: sin bundle, intentamos requestForeground vía reflexión
+                        try {
+                            val cls = Class.forName("com.apple.eawt.Application")
+                            val app = cls.getMethod("getApplication").invoke(null)
+                            cls.getMethod("requestForeground", Boolean::class.javaPrimitiveType)
+                               .invoke(app, true)
+                        } catch (_: Exception) {}
+                    }
+                } catch (_: Exception) {}
+            }
             window.toFront()
             window.requestFocus()
 
-            var dismissed = false
-            var ready     = false
+            var dismissed    = false
+            var ready        = false
+            var hadFocusOnce = false
 
-            fun dismissOnce() {
-                if (!dismissed) { dismissed = true; onDismiss() }
-            }
+            fun dismissOnce() { if (!dismissed) { dismissed = true; onDismiss() } }
 
-            val graceTimer = javax.swing.Timer(800) {
+            // Paso 2 — grace period de 1 s (open tarda ~200–400 ms en activar)
+            val graceTimer = javax.swing.Timer(1000) {
                 ready = true
             }.also { it.isRepeats = false; it.start() }
 
-            val adapter = object : WindowAdapter() {
-                override fun windowDeactivated(e: WindowEvent) { if (ready) dismissOnce() }
-            }
-            val focusListener = object : WindowFocusListener {
-                override fun windowGainedFocus(e: WindowEvent) {}
-                override fun windowLostFocus(e: WindowEvent) { if (ready) dismissOnce() }
-            }
-
-            // Clic fuera del popup dentro del mismo proceso JVM
-            val globalMouse = java.awt.event.AWTEventListener { awtEvent ->
-                if (ready &&
-                    awtEvent is java.awt.event.MouseEvent &&
-                    awtEvent.id == java.awt.event.MouseEvent.MOUSE_PRESSED
-                ) {
-                    val pt = awtEvent.locationOnScreen
-                    if (!window.bounds.contains(pt)) {
-                        javax.swing.SwingUtilities.invokeLater { dismissOnce() }
-                    }
+            // Paso 3 — polling cada 100 ms sobre activeWindow
+            val pollTimer = javax.swing.Timer(100) {
+                if (!ready) return@Timer
+                val active = java.awt.KeyboardFocusManager
+                    .getCurrentKeyboardFocusManager().activeWindow
+                if (active == window) {
+                    hadFocusOnce = true
+                } else if (hadFocusOnce) {
+                    dismissOnce()
                 }
             }
+            pollTimer.start()
 
+            // Listeners de foco como respaldo inmediato (funciona si ya éramos activos)
+            val adapter = object : WindowAdapter() {
+                override fun windowDeactivated(e: WindowEvent) { if (ready && hadFocusOnce) dismissOnce() }
+            }
+            val focusListener = object : WindowFocusListener {
+                override fun windowGainedFocus(e: WindowEvent) { hadFocusOnce = true }
+                override fun windowLostFocus(e: WindowEvent)   { if (ready && hadFocusOnce) dismissOnce() }
+            }
             window.addWindowListener(adapter)
             window.addWindowFocusListener(focusListener)
-            java.awt.Toolkit.getDefaultToolkit().addAWTEventListener(
-                globalMouse, java.awt.AWTEvent.MOUSE_EVENT_MASK
-            )
 
             onDispose {
                 graceTimer.stop()
+                pollTimer.stop()
                 window.removeWindowListener(adapter)
                 window.removeWindowFocusListener(focusListener)
-                java.awt.Toolkit.getDefaultToolkit().removeAWTEventListener(globalMouse)
             }
         }
 
@@ -212,6 +239,29 @@ fun TrayMenuWindow(
                 .fillMaxSize()
                 .background(Navy)
         ) {
+            // ── Trial banner / Upgrade ────────────────────────────────────────
+            if (!isPro) {
+                val bannerBg    = if (trialDaysLeft <= 0) Color(0xFFFF6B6B).copy(alpha = 0.15f)
+                                  else Color(0xFFFFE03A).copy(alpha = 0.10f)
+                val bannerColor = if (trialDaysLeft <= 0) Color(0xFFFF6B6B) else Color(0xFFFFE03A)
+                val bannerText  = if (trialDaysLeft <= 0) "Trial expired — Upgrade to Pro"
+                                  else "$trialDaysLeft days left in trial"
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(bannerBg)
+                        .clickable { onUpgrade(); onDismiss() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment     = Alignment.CenterVertically,
+                ) {
+                    Text(bannerText, color = bannerColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Upgrade →", color = bannerColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+            }
+
             // ── Pause · Settings · Quit — lo primero de todo ──────────────────
             Row(
                 modifier              = Modifier
@@ -297,8 +347,27 @@ fun TrayMenuWindow(
                         }
                     }
                 } else {
+                    // En Free tier: el calendario activo lo elige el usuario en Settings.
+                    // Si enabledCalendarIds está vacío (todos activos), usamos el mismo
+                    // fallback que la pantalla de Settings: primer cal. ordenado por cuenta/nombre.
+                    val freeCalId = if (isFree) {
+                        if (settings.enabledCalendarIds.isNotEmpty()) {
+                            settings.enabledCalendarIds.first()
+                        } else {
+                            homeState.allCalendars
+                                .sortedWith(compareBy({ it.accountName }, { it.name }))
+                                .firstOrNull()?.id
+                                ?: homeState.events.firstOrNull()?.calendarId
+                        }
+                    } else null
+                    val freeEvents = if (isFree)
+                        homeState.events
+                            .filter { ev -> freeCalId == null || ev.calendarId == freeCalId }
+                            .take(com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager.FREE_TIER_MAX_DAILY_ALERTS)
+                            .map { it.id }.toSet()
+                    else null  // null = todos disponibles
+
                     groupedEvents.forEach { group ->
-                        // Cabecera de grupo (Hoy / Mañana / Fecha)
                         item(key = "header_${group.label}") {
                             Text(
                                 text     = group.label,
@@ -311,7 +380,12 @@ fun TrayMenuWindow(
                                 letterSpacing = 0.5.sp,
                             )
                         }
-                        items(group.events, key = { it.id }) { event ->
+                        // Separa disponibles vs bloqueados dentro del grupo
+                        val (available, locked) = group.events.partition { ev ->
+                            freeEvents == null || ev.id in freeEvents
+                        }
+
+                        items(available, key = { "${group.label}_${it.id}" }) { event ->
                             TrayEventRow(
                                 event     = event,
                                 nowMillis = now,
@@ -328,37 +402,91 @@ fun TrayMenuWindow(
                                 onDelete  = { CustomEventsRepository.remove(event.id) },
                             )
                         }
+
+                        // Banner de upgrade + eventos bloqueados
+                        if (locked.isNotEmpty()) {
+                            item(key = "upgrade_banner_${group.label}") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onUpgrade(); onDismiss() }
+                                        .background(Color(0xFFFFE03A).copy(alpha = 0.07f))
+                                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                                    verticalAlignment     = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Text(
+                                        "🔒 ${locked.size} more event${if (locked.size > 1) "s" else ""} — Upgrade to Pro",
+                                        color    = Color(0xFFFFE03A).copy(alpha = 0.7f),
+                                        fontSize = 11.sp,
+                                    )
+                                    Text(
+                                        "Upgrade →",
+                                        color      = Color(0xFFFFE03A),
+                                        fontSize   = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            }
+                            items(locked, key = { "locked_${group.label}_${it.id}" }) { event ->
+                                TrayEventRow(
+                                    event     = event,
+                                    nowMillis = now,
+                                    isCustom  = false,
+                                    isLocked  = true,
+                                    onClick   = { onUpgrade(); onDismiss() },
+                                    onDelete  = {},
+                                )
+                            }
+                        }
                     }
                 }
             }
 
-            // ── Barra DEV — TODO: eliminar antes del release ───────────────────
-            if (showDevBar) Row(
+            // ── Barra DEV — solo en builds de desarrollo (IS_RELEASE = false) ──
+            if (!com.sierraespada.wakeywakey.windows.AppBuildConfig.IS_RELEASE && showDevBar) Row(
                 modifier              = Modifier
                     .fillMaxWidth()
                     .background(Color.White.copy(alpha = 0.025f))
                     .padding(horizontal = 10.dp, vertical = 2.dp),
                 verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(0.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(
-                    "DEV",
-                    fontSize      = 8.sp,
-                    fontWeight    = FontWeight.Bold,
-                    color         = Yellow.copy(alpha = 0.35f),
-                    letterSpacing = 1.sp,
-                    modifier      = Modifier.padding(end = 6.dp),
-                )
-                // 👁  Preview alerta inmediata
-                DebugTrayButton("👁") { onDebugPreview(); onDismiss() }
-                // ⚡  Alarma en 5 s
-                DebugTrayButton("⚡") { onDebugAlarm5s(); onDismiss() }
-                // 🔄  Reset wizard (vuelve a mostrar el setup)
-                DebugTrayButton("🔄") { onResetWizard(); onDismiss() }
+                // Grupo izquierdo: label + botones debug + simuladores de tier
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "DEV",
+                        fontSize      = 8.sp,
+                        fontWeight    = FontWeight.Bold,
+                        color         = Yellow.copy(alpha = 0.35f),
+                        letterSpacing = 1.sp,
+                        modifier      = Modifier.padding(end = 4.dp),
+                    )
+                    // 👁  Preview alerta inmediata
+                    DebugTrayButton("👁") { onDebugPreview(); onDismiss() }
+                    // ⚡  Alarma en 5 s
+                    DebugTrayButton("⚡") { onDebugAlarm5s(); onDismiss() }
+                    // 🔄  Reset wizard
+                    DebugTrayButton("🔄") { onResetWizard(); onDismiss() }
 
-                Spacer(Modifier.weight(1f))
+                    Spacer(Modifier.width(4.dp))
+                    Box(Modifier.width(1.dp).height(16.dp).background(Color.White.copy(alpha = 0.12f)))
+                    Spacer(Modifier.width(4.dp))
 
-                // Toggle Mac ↔ Win
+                    // Simuladores de tier — revocar licencia antes de cambiar a Trial/Free
+                    val em = com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager
+                    DebugTierButton("⏳ Trial") {
+                        em.debugRevokeLicense(); em.debugSetElapsedDays(0)
+                    }
+                    DebugTierButton("🔒 Free") {
+                        em.debugRevokeLicense(); em.debugSetElapsedDays(31)
+                    }
+                    DebugTierButton("⭐ Pro") {
+                        em.activateLicense("DEBUG-LICENSE-KEY-PRO")
+                    }
+                }
+
+                // Toggle Mac ↔ Win — siempre visible en el extremo derecho
                 val isMacMode = platformMode == PlatformMode.MAC_SYSTEM
                 Surface(
                     shape    = RoundedCornerShape(4.dp),
@@ -375,7 +503,7 @@ fun TrayMenuWindow(
                     )
                 }
             }
-            if (showDevBar) HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+            if (!com.sierraespada.wakeywakey.windows.AppBuildConfig.IS_RELEASE && showDevBar) HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
             // ── END DEV ────────────────────────────────────────────────────────
 
             // ── Dialog añadir evento ──────────────────────────────────────────
@@ -393,6 +521,7 @@ private fun TrayEventRow(
     event:    CalendarEvent,
     nowMillis: Long,
     isCustom:  Boolean = false,
+    isLocked:  Boolean = false,
     onClick:   () -> Unit,
     onDelete:  () -> Unit = {},
 ) {
@@ -400,15 +529,34 @@ private fun TrayEventRow(
     val minsLeft    = ((event.startTime - nowMillis) / 60_000L).toInt()
     val hasVideo    = event.meetingLink != null
 
-    // Color del indicador lateral
-    val accentColor = when {
+    // Locked rows are dimmed — override all colors
+    val dimAlpha = if (isLocked) 0.3f else 1f
+
+    // Color de estado (usado en texto de hora y fondo de fila)
+    val statusColor = when {
+        isLocked              -> Color.White.copy(alpha = 0.25f)
         isOngoing && hasVideo -> Green
         isOngoing             -> Yellow.copy(alpha = 0.6f)
         minsLeft in 0..10     -> Coral
         else                  -> Yellow.copy(alpha = 0.45f)
     }
+    // La franja lateral usa el color del calendario; si no hay, usa el de estado
+    val barColor = if (isLocked) {
+        Color.White.copy(alpha = 0.12f)
+    } else {
+        event.calendarColor?.let { argb ->
+            Color(
+                red   = ((argb shr 16) and 0xFF) / 255f,
+                green = ((argb shr  8) and 0xFF) / 255f,
+                blue  = ( argb        and 0xFF) / 255f,
+                alpha = 1f,
+            )
+        } ?: statusColor
+    }
+    val accentColor = statusColor
 
     val rowBg = when {
+        isLocked              -> Color.Transparent
         isOngoing && hasVideo -> Green.copy(alpha = 0.07f)
         isOngoing             -> Yellow.copy(alpha = 0.05f)
         else                  -> Color.Transparent
@@ -423,24 +571,44 @@ private fun TrayEventRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Franja de color lateral
+        // Franja de color lateral — color del calendario
         Box(
             modifier = Modifier
-                .width(3.dp)
-                .height(32.dp)
-                .background(accentColor, RoundedCornerShape(2.dp))
+                .width(4.dp)
+                .height(36.dp)
+                .background(barColor, RoundedCornerShape(2.dp))
         )
 
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            // Línea 1: título
-            Text(
-                text       = event.title,
-                fontSize   = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color      = Color.White,
-                maxLines   = 1,
-                overflow   = TextOverflow.Ellipsis,
-            )
+            // Línea 1: indicador de recurrencia + título
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (event.isRecurring && !isLocked) {
+                    Text(
+                        "↻",
+                        fontSize = 11.sp,
+                        color    = Color.White.copy(alpha = 0.55f),
+                    )
+                }
+                if (isLocked) {
+                    Text(
+                        "🔒",
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(end = 2.dp),
+                    )
+                }
+                Text(
+                    text       = event.title,
+                    fontSize   = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color      = Color.White.copy(alpha = dimAlpha),
+                    maxLines   = 1,
+                    overflow   = TextOverflow.Ellipsis,
+                    modifier   = Modifier.weight(1f, fill = false),
+                )
+            }
             // Línea 2: hora inicio–fin
             Text(
                 text     = buildTimeLabel(event, nowMillis, isOngoing, minsLeft),
@@ -450,7 +618,7 @@ private fun TrayEventRow(
         }
 
         // Icono cámara alineado al margen derecho
-        if (hasVideo) {
+        if (hasVideo && !isLocked) {
             Icon(
                 imageVector        = Icons.Filled.Videocam,
                 contentDescription = "Video meeting",
@@ -460,7 +628,7 @@ private fun TrayEventRow(
         }
 
         // Botón eliminar solo para eventos propios
-        if (isCustom) {
+        if (isCustom && !isLocked) {
             Box(
                 modifier         = Modifier
                     .size(22.dp)
@@ -528,12 +696,27 @@ private fun FooterButton(
 
 @Composable
 private fun DebugTrayButton(emoji: String, onClick: () -> Unit) {
-    androidx.compose.material3.TextButton(
-        onClick        = onClick,
-        contentPadding = PaddingValues(horizontal = 3.dp, vertical = 0.dp),
-        modifier       = Modifier.height(28.dp),
+    Box(
+        modifier         = Modifier
+            .height(28.dp)
+            .clickable { onClick() }
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(emoji, fontSize = 16.sp)
+        Text(emoji, fontSize = 15.sp)
+    }
+}
+
+@Composable
+private fun DebugTierButton(label: String, onClick: () -> Unit) {
+    Box(
+        modifier         = Modifier
+            .height(24.dp)
+            .clickable { onClick() }
+            .padding(horizontal = 5.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, fontSize = 9.sp, color = Color.White.copy(alpha = 0.5f), fontWeight = FontWeight.SemiBold)
     }
 }
 

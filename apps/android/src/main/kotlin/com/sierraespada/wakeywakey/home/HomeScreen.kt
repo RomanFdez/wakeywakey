@@ -38,6 +38,7 @@ import com.sierraespada.wakeywakey.model.CalendarEvent
 import com.sierraespada.wakeywakey.scheduler.AndroidAlarmScheduler
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.flow.map
 
 // ─── Brand colours ────────────────────────────────────────────────────────────
 private val Yellow      = Color(0xFFFFE03A)
@@ -84,6 +85,8 @@ fun HomeScreen(
                             onAddAlert        = { showAddAlert = true },
                             onResetOnboarding = onResetOnboarding,
                             onShowPaywall     = onShowPaywall,
+                            showDevBar        = state.showDevBar,
+                            nowMillis         = state.nowMillis,
                         )
                     }
                     when {
@@ -321,10 +324,17 @@ private fun HomeHeader(
     onAddAlert: () -> Unit = {},
     onResetOnboarding: () -> Unit = {},
     onShowPaywall: () -> Unit = {},
+    showDevBar: Boolean = false,
+    nowMillis: Long = System.currentTimeMillis(),
 ) {
     val context       = LocalContext.current
     val trialDaysLeft by EntitlementManager.trialDaysLeft.collectAsState()
     val isPro         by EntitlementManager.isPro.collectAsState()
+    val showDev       by com.sierraespada.wakeywakey.settings.SettingsRepository
+        .getInstance(context)
+        .settings
+        .map { it.showDevBar }
+        .collectAsState(initial = true)
     Column(modifier = Modifier.fillMaxWidth()) {
     Row(
         modifier              = Modifier.fillMaxWidth(),
@@ -339,7 +349,7 @@ private fun HomeHeader(
                 color      = Yellow,
             )
             Text(
-                text     = todayLabel(),
+                text     = remember(nowMillis) { dayFmt.format(Date(nowMillis)).replaceFirstChar { it.uppercase() } },
                 fontSize = 13.sp,
                 color    = Color.White.copy(alpha = 0.45f),
             )
@@ -364,8 +374,8 @@ private fun HomeHeader(
         }
     }
 
-    // ── DEBUG buttons — TODO: remove before release ───────────────────────────
-    Row(
+    // ── DEBUG buttons ─────────────────────────────────────────────────────────
+    if (showDev) Row(
         modifier              = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
         verticalAlignment     = Alignment.CenterVertically,
@@ -409,11 +419,8 @@ private fun HomeHeader(
         }
     }
 
-    // ── DEBUG — Trial simulator ───────────────────────────────────────────────
-    // Simula distintos estados del ciclo de vida del trial sin tocar DataStore.
-    // isPro + trialDaysLeft se actualizan en tiempo real → los lock icons y el
-    // paywall reaccionan inmediatamente. TODO: eliminar antes del release.
-    Row(
+    // ── DEBUG — Trial simulator ────────────────────────────────────────────────
+    if (showDev) Row(
         modifier              = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End),
         verticalAlignment     = Alignment.CenterVertically,
@@ -457,7 +464,7 @@ private fun HomeHeader(
         }
     }
     // ── END DEBUG ─────────────────────────────────────────────────────────────
-    } // end Column
+    } // end outer Column
 }
 
 // ─── Next meeting card ────────────────────────────────────────────────────────
@@ -503,8 +510,8 @@ private fun NextMeetingCard(event: CalendarEvent, nowMillis: Long, onTap: () -> 
                 Text(
                     text = when {
                         isOngoing      -> stringResource(R.string.home_event_ongoing)
-                        isStartingSoon -> "● Starting in ${minutesLeft} min"
-                        else           -> "Next meeting"
+                        isStartingSoon -> stringResource(R.string.home_event_in_minutes, minutesLeft)
+                        else           -> stringResource(R.string.home_next_meeting)
                     },
                     fontSize   = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -686,7 +693,7 @@ fun TabletDetailPanel(
         }
     }
 
-    val dateFmt = remember { SimpleDateFormat("EEE, MMM d · HH:mm", Locale.ENGLISH) }
+    val dateFmt = remember { SimpleDateFormat("EEE, MMM d · HH:mm", Locale.getDefault()) }
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
     val minutesLeft = ((event.startTime - nowMillis) / 60_000L).toInt()
@@ -763,7 +770,7 @@ fun TabletDetailPanel(
         // ── Notes ─────────────────────────────────────────────────────────
         if (!event.description.isNullOrBlank()) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                TabletSectionLabel("Notes")
+                TabletSectionLabel(stringResource(R.string.home_notes))
                 Text(
                     text       = event.description!!,
                     fontSize   = 14.sp,
@@ -899,7 +906,7 @@ private fun TimeChip(label: String, color: Color) {
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 private val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
-private val dayFmt  = SimpleDateFormat("EEEE, MMMM d", Locale.ENGLISH)
+private val dayFmt  = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
 
 private fun formatTime(millis: Long): String = timeFmt.format(Date(millis))
 

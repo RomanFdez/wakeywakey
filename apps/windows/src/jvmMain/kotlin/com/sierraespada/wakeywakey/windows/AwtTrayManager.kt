@@ -97,12 +97,13 @@ object AwtTrayManager {
         if (!settings.trayShowMeetingName && !settings.trayShowTimeRemaining) return null
 
         val now = System.currentTimeMillis()
+        // Solo mostramos la SIGUIENTE reunión que AÚN NO ha empezado.
+        // Las reuniones en curso siguen apareciendo en el popup pero no en la barra.
         val next = homeState.events.firstOrNull { ev ->
-            ev.endTime > now && (settings.trayIncludeTomorrow || isToday(ev.startTime))
+            ev.startTime > now && (settings.trayIncludeTomorrow || isToday(ev.startTime))
         } ?: return null
 
         val minsLeft = ((next.startTime - now) / 60_000L).toInt()
-        if (minsLeft < -2) return null  // ya acabó
 
         val title: String? = if (settings.trayShowMeetingName) {
             val raw = next.title

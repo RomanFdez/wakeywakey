@@ -7,6 +7,7 @@ import com.sierraespada.wakeywakey.model.CalendarEvent
 import com.sierraespada.wakeywakey.model.DeviceCalendar
 import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.statement.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
@@ -80,7 +81,7 @@ class MicrosoftCalendarRepository : CalendarRepository {
     }
 
     private suspend fun exchangeCode(code: String, verifier: String, redirectUri: String): OAuthTokens {
-        val resp = http.submitForm(
+        val resp    = http.submitForm(
             url            = "https://login.microsoftonline.com/common/oauth2/v2.0/token",
             formParameters = parameters {
                 append("client_id",     clientId)
@@ -91,7 +92,16 @@ class MicrosoftCalendarRepository : CalendarRepository {
                 append("scope",         SCOPE)
             }
         )
-        val body  = resp.body<MsTokenResponse>()
+        val rawJson = resp.bodyAsText()
+        System.err.println("MS token response (${resp.status}): $rawJson")
+
+        // Si Microsoft devuelve un error, lanzamos excepción con el mensaje real
+        val errResp = runCatching { Json.decodeFromString<MsErrorResponse>(rawJson) }.getOrNull()
+        if (errResp?.error != null) {
+            throw Exception("Microsoft OAuth error: ${errResp.error} — ${errResp.errorDescription}")
+        }
+
+        val body  = Json { ignoreUnknownKeys = true; isLenient = true }.decodeFromString<MsTokenResponse>(rawJson)
         val email = fetchEmail(body.accessToken)
         return OAuthTokens(
             accessToken  = body.accessToken,
@@ -201,6 +211,8 @@ class MicrosoftCalendarRepository : CalendarRepository {
 
     override suspend fun getAvailableCalendars(): List<DeviceCalendar> {
         val token = validToken()
+        // Resuelve email: primero del StateFlow reactivo, luego token, luego fallback.
+        val accountEmail = CalendarAccountManager.connectedEmail(PROVIDER)?.takeIf { it.isNotBlank() } ?: "Microsoft"
         val resp  = http.get("https://graph.microsoft.com/v1.0/me/calendars") {
             bearerAuth(token)
             parameter("\$select", "id,name,color,hexColor,canEdit")
@@ -212,7 +224,7 @@ class MicrosoftCalendarRepository : CalendarRepository {
             DeviceCalendar(
                 id          = stableId,
                 name        = cal.name.ifBlank { cal.id },
-                accountName = cal.id,
+                accountName = accountEmail,
                 color       = cal.hexColor?.hexToArgb() ?: 0xFF0078D4.toInt(),
                 isVisible   = true,
             )
@@ -260,6 +272,7 @@ class MicrosoftCalendarRepository : CalendarRepository {
 
         val isConfigured: Boolean
             get() = runCatching { clientId; true }.getOrElse { false }
+                 || TokenStorage.load(PROVIDER) != null
 
         private fun credential(key: String, fromBuildConfig: () -> String?): String =
             fromBuildConfig()
@@ -326,6 +339,11 @@ class MicrosoftCalendarRepository : CalendarRepository {
     val id:       String,
     val name:     String  = "",
     val hexColor: String? = null,
+)
+
+@Serializable private data class MsErrorResponse(
+    @SerialName("error")             val error:            String? = null,
+    @SerialName("error_description") val errorDescription: String? = null,
 )
 
 /** Hash string → Long estable (misma función que GoogleCalendarRepository). */
