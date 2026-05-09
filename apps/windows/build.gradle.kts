@@ -62,8 +62,11 @@ compose.desktop {
         mainClass = "com.sierraespada.wakeywakey.windows.MainKt"
 
         // Temurin 25 has jpackage; Android Studio's JBR does not.
-        // Used only for createDistributable / packageDmg tasks, not for compilation.
-        javaHome = "/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home"
+        // macOS local dev: point at Temurin 25. On Windows / Linux CI, use the CI's Java (JAVA_HOME).
+        val temurin25 = "/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home"
+        if (org.gradle.internal.os.OperatingSystem.current().isMacOsX && file(temurin25).exists()) {
+            javaHome = temurin25
+        }
 
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Dmg)
@@ -74,8 +77,13 @@ compose.desktop {
             copyright      = "© 2026 SierraEspada"
 
             windows {
-                menuGroup   = "WakeyWakey"
-                upgradeUuid = "1EF21982-0C82-4462-9C32-E0BD8369C7BE"
+                menuGroup      = "WakeyWakey"
+                upgradeUuid    = "1EF21982-0C82-4462-9C32-E0BD8369C7BE"
+                iconFile.set(project.file("src/jvmMain/resources/WakeyWakey.ico"))
+                // Aparece en Inicio → Agregar o quitar programas
+                shortcut       = true
+                dirChooser     = true
+                perUserInstall = false   // instala para todos los usuarios (requiere elevación)
             }
 
             macOS {
@@ -132,7 +140,8 @@ val appMacOS  = "${buildDir}/compose/binaries/main/app/WakeyWakey.app/Contents/M
 
 val compileCalendarHelper by tasks.registering(Exec::class) {
     group       = "build"
-    description = "Compiles CalendarHelper.swift → arm64 binary"
+    description = "Compiles CalendarHelper.swift → arm64 binary (macOS only)"
+    onlyIf { org.gradle.internal.os.OperatingSystem.current().isMacOsX }
     inputs.file(swiftSrc)
     outputs.file(helperOut)
     executable  = "swiftc"
@@ -148,7 +157,8 @@ val compileCalendarHelper by tasks.registering(Exec::class) {
 
 val injectCalendarHelper by tasks.registering(Copy::class) {
     group       = "build"
-    description = "Copies CalendarHelper into WakeyWakey.app/Contents/MacOS/"
+    description = "Copies CalendarHelper into WakeyWakey.app/Contents/MacOS/ (macOS only)"
+    onlyIf { org.gradle.internal.os.OperatingSystem.current().isMacOsX }
     dependsOn(compileCalendarHelper)
     from(helperOut)
     into(appMacOS)

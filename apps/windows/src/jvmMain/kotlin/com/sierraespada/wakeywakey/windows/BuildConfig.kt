@@ -14,7 +14,7 @@ package com.sierraespada.wakeywakey.windows
  *   O usando el script de CI incluido en .github/workflows/release.yml.
  */
 internal object BuildConfig {
-    const val VERSION              = "0.1.0"
+    const val VERSION              = "1.0.0"
     const val GOOGLE_CLIENT_ID     = ""   // Sobreescrito por CI en producción
     const val GOOGLE_CLIENT_SECRET = ""   // Sobreescrito por CI en producción
     const val MICROSOFT_CLIENT_ID  = ""   // Sobreescrito por CI en producción

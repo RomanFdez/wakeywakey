@@ -4,8 +4,13 @@ import kotlinx.coroutines.*
 import java.io.File
 
 /**
- * Reproduce los ficheros MP3 incluidos en resources/sounds/ usando `afplay` (macOS).
- * Si el proceso no está disponible (Windows/Linux), cae silenciosamente.
+ * Reproductor de MP3 cross-platform.
+ *
+ *  - macOS   → `afplay -v <vol> <path>`
+ *  - Windows → PowerShell MediaPlayer (WPF assemblies, incluidos en Win 10/11)
+ *  - Linux   → `mpg123 -q <path>` (fallback; no incluido en distribución)
+ *
+ * Si el player no está disponible, falla silenciosamente.
  */
 object SoundPlayer {
 
@@ -29,10 +34,12 @@ object SoundPlayer {
         SoundDef("whistle",           "Whistle",           "🌬️"),
     )
 
+    private val isMac     = System.getProperty("os.name", "").startsWith("Mac")
+    private val isWindows = System.getProperty("os.name", "").startsWith("Windows")
+
     /**
-     * Extrae el MP3 de resources a un fichero temporal y lo reproduce con afplay.
+     * Extrae el MP3 de resources a un fichero temporal y lo reproduce.
      * Si [loop] = true, repite hasta que se cancela el Job devuelto.
-     * Devuelve un Job que se puede cancelar para detener la reproducción.
      */
     fun play(soundId: String, volume: Float, loop: Boolean = false): Job {
         return CoroutineScope(Dispatchers.IO).launch {
@@ -40,20 +47,18 @@ object SoundPlayer {
             try {
                 val vol = volume.coerceIn(0f, 1f)
                 do {
-                    val process = ProcessBuilder(
-                        "afplay", "-v", vol.toString(), tmpFile.absolutePath
-                    )
+                    val cmd = buildCommand(tmpFile.absolutePath, vol)
+                    val process = ProcessBuilder(cmd)
                         .redirectErrorStream(true)
                         .start()
 
-                    // Espera a que termine, pero para si se cancela el job
-                    val exitCode = withContext(Dispatchers.IO) {
+                    withContext(Dispatchers.IO) {
                         while (process.isAlive && isActive) delay(100)
                         if (process.isAlive) process.destroyForcibly()
                         process.waitFor()
                     }
                     if (!isActive) break
-                    if (loop && isActive) delay(500)   // pausa entre repeticiones
+                    if (loop && isActive) delay(500)
                 } while (loop && isActive)
             } catch (e: Exception) {
                 System.err.println("SoundPlayer[$soundId]: ${e.message}")
@@ -64,6 +69,23 @@ object SoundPlayer {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private fun buildCommand(path: String, volume: Float): List<String> = when {
+        isMac     -> listOf("afplay", "-v", volume.toString(), path)
+        isWindows -> listOf(
+            "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+            // WPF MediaPlayer incluido en Windows 10/11 sin dependencias extra
+            """
+            Add-Type -AssemblyName PresentationCore
+            ${'$'}mp = New-Object System.Windows.Media.MediaPlayer
+            ${'$'}mp.Open([Uri]"$path")
+            ${'$'}mp.Volume = $volume
+            ${'$'}mp.Play()
+            Start-Sleep -Milliseconds 30000
+            """.trimIndent()
+        )
+        else      -> listOf("mpg123", "-q", path)   // Linux fallback
+    }
 
     private fun extractToTemp(soundId: String): File? {
         val resourcePath = "/sounds/$soundId.mp3"
