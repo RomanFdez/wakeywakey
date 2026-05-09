@@ -44,7 +44,8 @@ kotlin {
                 implementation(project(":shared"))
                 implementation(compose.desktop.currentOs)
                 implementation(compose.material3)
-                implementation(compose.materialIconsExtended)
+                // Icons core (~864 KB) en vez de Extended (~36 MB). Los 6 iconos Extended están en WakeyWakeyIcons.kt
+                implementation("org.jetbrains.compose.material:material-icons-core:1.7.3")
                 implementation(libs.kotlinx.coroutines.swing)
                 implementation(libs.kotlinx.serialization.json)
                 implementation(libs.ktor.client.cio)
