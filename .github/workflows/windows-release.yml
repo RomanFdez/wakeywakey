@@ -43,17 +43,19 @@ jobs:
           Set-Content $f $content
           Write-Host "OAuth credentials injected"
 
-      # ── Build MSI + EXE (forzar re-ejecución) ─────────────────────────────
+      # ── Build MSI + EXE ───────────────────────────────────────────────────
+      # shell: bash usa Git Bash en Windows → ejecuta ./gradlew (Unix script) correctamente.
+      # pwsh no puede ejecutar el Unix gradlew script directamente.
       - name: Build Windows installers
-        shell: pwsh
+        shell: bash
         run: |
-          ./gradlew :apps:windows:packageMsi :apps:windows:packageExe `
-            -Prelease `
-            -PappVersion=${{ github.event.inputs.version }} `
-            --no-daemon `
-            --no-configuration-cache `
+          ./gradlew :apps:windows:packageMsi :apps:windows:packageExe \
+            -Prelease \
+            -PappVersion=${{ github.event.inputs.version }} \
+            --no-daemon \
+            --no-configuration-cache \
             --rerun-tasks
-          Write-Host "Build complete"
+          echo "Build complete"
 
       # ── Debug: mostrar qué se produjo ─────────────────────────────────────
       - name: List build output
