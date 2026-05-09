@@ -23,11 +23,11 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'   # JDK 21 includes WiX tools for MSI packaging
+          java-version: '21'
 
       - uses: gradle/actions/setup-gradle@v3
 
-      # ── Inyectar credenciales OAuth en BuildConfig.kt ──────────────────────
+      # ── Inyectar credenciales OAuth ────────────────────────────────────────
       - name: Inject OAuth credentials
         shell: pwsh
         env:
@@ -43,35 +43,65 @@ jobs:
           Set-Content $f $content
           Write-Host "OAuth credentials injected"
 
-      # ── Build MSI + EXE ─────────────────────────────────────────────────────
+      # ── Build MSI + EXE (forzar re-ejecución) ─────────────────────────────
       - name: Build Windows installers
-        run: >
-          ./gradlew :apps:windows:packageMsi :apps:windows:packageExe
-          -Prelease
-          -PappVersion=${{ github.event.inputs.version }}
-          --no-daemon
-          --no-configuration-cache
-
-      # ── Renombrar con versión ────────────────────────────────────────────────
-      - name: Rename artifacts
         shell: pwsh
         run: |
-          $v = "${{ github.event.inputs.version }}"
-          $msiDir = "apps/windows/build/compose/binaries/main/msi"
-          $exeDir = "apps/windows/build/compose/binaries/main/exe"
-          Get-ChildItem "$msiDir/*.msi" | Rename-Item -NewName "WakeyWakey-$v-Setup.msi"
-          Get-ChildItem "$exeDir/*.exe" | Rename-Item -NewName "WakeyWakey-$v-Setup.exe"
-          Write-Host "Artifacts renamed"
-          Get-ChildItem "$msiDir", "$exeDir" | Select-Object Name, Length
+          ./gradlew :apps:windows:packageMsi :apps:windows:packageExe `
+            -Prelease `
+            -PappVersion=${{ github.event.inputs.version }} `
+            --no-daemon `
+            --no-configuration-cache `
+            --rerun-tasks
+          Write-Host "Build complete"
 
-      # ── Subir al GitHub Release ──────────────────────────────────────────────
+      # ── Debug: mostrar qué se produjo ─────────────────────────────────────
+      - name: List build output
+        shell: pwsh
+        run: |
+          Write-Host "=== Searching for MSI/EXE files ==="
+          Get-ChildItem -Recurse -Path "apps/windows/build" -Include "*.msi","*.exe" -ErrorAction SilentlyContinue |
+            Select-Object FullName, Length | Format-Table -AutoSize
+          Write-Host "=== Done ==="
+
+      # ── Copiar con nombres fijos (sin versión) → URL permanente en web ─────
+      # URL en la web: /releases/latest/download/WakeyWakey-Setup.msi
+      - name: Prepare artifacts with fixed names
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist" | Out-Null
+
+          $msi = Get-ChildItem -Recurse -Path "apps/windows/build" -Filter "*.msi" | Select-Object -First 1
+          if ($msi) {
+            Copy-Item $msi.FullName "dist\WakeyWakey-Setup.msi"
+            Write-Host "MSI: $($msi.FullName) -> dist\WakeyWakey-Setup.msi ($([math]::Round($msi.Length/1MB,1)) MB)"
+          } else {
+            Write-Host "##[error]No MSI file found!"
+            exit 1
+          }
+
+          $exe = Get-ChildItem -Recurse -Path "apps/windows/build" -Filter "*.exe" | Select-Object -First 1
+          if ($exe) {
+            Copy-Item $exe.FullName "dist\WakeyWakey-Setup.exe"
+            Write-Host "EXE: $($exe.FullName) -> dist\WakeyWakey-Setup.exe ($([math]::Round($exe.Length/1MB,1)) MB)"
+          } else {
+            Write-Host "##[warning]No EXE file found (optional)"
+          }
+
+      # ── Upload a GitHub Release ────────────────────────────────────────────
       - name: Upload to GitHub Release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ github.event.inputs.release_tag }}" \
-            apps/windows/build/compose/binaries/main/msi/WakeyWakey-${{ github.event.inputs.version }}-Setup.msi \
-            apps/windows/build/compose/binaries/main/exe/WakeyWakey-${{ github.event.inputs.version }}-Setup.exe \
-            --clobber
-          echo "Uploaded to release ${{ github.event.inputs.release_tag }}"
+          files=""
+          [ -f "dist/WakeyWakey-Setup.msi" ] && files="$files dist/WakeyWakey-Setup.msi"
+          [ -f "dist/WakeyWakey-Setup.exe" ] && files="$files dist/WakeyWakey-Setup.exe"
+
+          if [ -z "$files" ]; then
+            echo "No artifacts found!"
+            exit 1
+          fi
+
+          gh release upload "${{ github.event.inputs.release_tag }}" $files --clobber
+          echo "Uploaded: $files"
