@@ -1,0 +1,77 @@
+name: Windows Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. 1.0.0)'
+        required: true
+        default: '1.0.0'
+      release_tag:
+        description: 'GitHub Release tag to upload to (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build-windows:
+    name: Build Windows (MSI + EXE)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'   # JDK 21 includes WiX tools for MSI packaging
+
+      - uses: gradle/actions/setup-gradle@v3
+
+      # ── Inyectar credenciales OAuth en BuildConfig.kt ──────────────────────
+      - name: Inject OAuth credentials
+        shell: pwsh
+        env:
+          GID:     ${{ secrets.GOOGLE_CLIENT_ID }}
+          GSECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          MSID:    ${{ secrets.MICROSOFT_CLIENT_ID }}
+        run: |
+          $f = "apps/windows/src/jvmMain/kotlin/com/sierraespada/wakeywakey/windows/BuildConfig.kt"
+          $content = Get-Content $f -Raw
+          $content = $content -replace 'GOOGLE_CLIENT_ID\s*= ""',     "GOOGLE_CLIENT_ID     = `"$env:GID`""
+          $content = $content -replace 'GOOGLE_CLIENT_SECRET\s*= ""', "GOOGLE_CLIENT_SECRET = `"$env:GSECRET`""
+          $content = $content -replace 'MICROSOFT_CLIENT_ID\s*= ""',  "MICROSOFT_CLIENT_ID  = `"$env:MSID`""
+          Set-Content $f $content
+          Write-Host "OAuth credentials injected"
+
+      # ── Build MSI + EXE ─────────────────────────────────────────────────────
+      - name: Build Windows installers
+        run: >
+          ./gradlew :apps:windows:packageMsi :apps:windows:packageExe
+          -Prelease
+          -PappVersion=${{ github.event.inputs.version }}
+          --no-daemon
+          --no-configuration-cache
+
+      # ── Renombrar con versión ────────────────────────────────────────────────
+      - name: Rename artifacts
+        shell: pwsh
+        run: |
+          $v = "${{ github.event.inputs.version }}"
+          $msiDir = "apps/windows/build/compose/binaries/main/msi"
+          $exeDir = "apps/windows/build/compose/binaries/main/exe"
+          Get-ChildItem "$msiDir/*.msi" | Rename-Item -NewName "WakeyWakey-$v-Setup.msi"
+          Get-ChildItem "$exeDir/*.exe" | Rename-Item -NewName "WakeyWakey-$v-Setup.exe"
+          Write-Host "Artifacts renamed"
+          Get-ChildItem "$msiDir", "$exeDir" | Select-Object Name, Length
+
+      # ── Subir al GitHub Release ──────────────────────────────────────────────
+      - name: Upload to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.inputs.release_tag }}" \
+            apps/windows/build/compose/binaries/main/msi/WakeyWakey-${{ github.event.inputs.version }}-Setup.msi \
+            apps/windows/build/compose/binaries/main/exe/WakeyWakey-${{ github.event.inputs.version }}-Setup.exe \
+            --clobber
+          echo "Uploaded to release ${{ github.event.inputs.release_tag }}"
