@@ -29,7 +29,7 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
-            implementation(compose.materialIconsExtended)
+            // materialIconsExtended removed — saves 36 MB on Desktop; icons defined locally in WakeyWakeyIcons.kt
             implementation(compose.components.resources)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
