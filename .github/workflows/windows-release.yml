@@ -16,6 +16,8 @@ jobs:
   build-windows:
     name: Build Windows (MSI + EXE)
     runs-on: windows-latest
+    permissions:
+      contents: write   # needed to upload assets to GitHub Release
 
     steps:
       - uses: actions/checkout@v4
