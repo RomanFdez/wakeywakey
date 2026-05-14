@@ -97,13 +97,9 @@ object AwtTrayManager {
         if (!settings.trayShowMeetingName && !settings.trayShowTimeRemaining) return null
 
         val now = System.currentTimeMillis()
-        // Solo mostramos la SIGUIENTE reunión que AÚN NO ha empezado.
-        // Las reuniones en curso siguen apareciendo en el popup pero no en la barra.
-        val next = homeState.events.firstOrNull { ev ->
-            ev.startTime > now && (settings.trayIncludeTomorrow || isToday(ev.startTime))
-        } ?: return null
 
-        val minsLeft = ((next.startTime - now) / 60_000L).toInt()
+        // Siguiente reunión que aún no ha empezado (cualquier día).
+        val next = homeState.events.firstOrNull { ev -> ev.startTime > now } ?: return null
 
         val title: String? = if (settings.trayShowMeetingName) {
             val raw = next.title
@@ -117,26 +113,46 @@ object AwtTrayManager {
             }
         } else null
 
-        val time: String? = if (settings.trayShowTimeRemaining) when {
-            minsLeft <= 0 -> "now"
-            minsLeft < 60 -> if (settings.countdownMinutesOnly) "${minsLeft}m"
-                             else {
-                                 val secsLeft = ((next.startTime - now) / 1000L)
-                                 val s = (secsLeft % 60L).toInt().coerceAtLeast(0)
-                                 "${minsLeft}m %02ds".format(s)
-                             }
-            else          -> "${minsLeft / 60}h ${minsLeft % 60}m"
+        val time: String? = if (settings.trayShowTimeRemaining) {
+            val daysAway = calendarDaysUntil(next.startTime)
+            when {
+                daysAway == 0 -> {
+                    // Hoy: muestra cuenta regresiva en minutos/segundos
+                    val minsLeft = ((next.startTime - now) / 60_000L).toInt().coerceAtLeast(0)
+                    when {
+                        minsLeft <= 0 -> "now"
+                        minsLeft < 60 -> if (settings.countdownMinutesOnly) "${minsLeft}m"
+                                         else {
+                                             val s = (((next.startTime - now) / 1000L) % 60L)
+                                                         .toInt().coerceAtLeast(0)
+                                             "${minsLeft}m %02ds".format(s)
+                                         }
+                        else          -> "${minsLeft / 60}h ${minsLeft % 60}m"
+                    }
+                }
+                daysAway == 1 -> if (isSpanish()) "Mañana" else "Tomorrow"
+                else          -> "+${daysAway}d"
+            }
         } else null
 
         return listOfNotNull(title, time).joinToString(" · ").ifEmpty { null }
     }
 
-    private fun isToday(millis: Long): Boolean {
-        val t = JCal.getInstance()
-        val e = JCal.getInstance().apply { timeInMillis = millis }
-        return t.get(JCal.YEAR) == e.get(JCal.YEAR) &&
-               t.get(JCal.DAY_OF_YEAR) == e.get(JCal.DAY_OF_YEAR)
+    /** Días de calendario entre ahora y [targetMillis] (0 = hoy, 1 = mañana, …). */
+    private fun calendarDaysUntil(targetMillis: Long): Int {
+        val now = JCal.getInstance()
+        val target = JCal.getInstance().apply { timeInMillis = targetMillis }
+        // Normaliza a medianoche para comparar días completos
+        now.set(JCal.HOUR_OF_DAY, 0); now.set(JCal.MINUTE, 0); now.set(JCal.SECOND, 0); now.set(JCal.MILLISECOND, 0)
+        target.set(JCal.HOUR_OF_DAY, 0); target.set(JCal.MINUTE, 0); target.set(JCal.SECOND, 0); target.set(JCal.MILLISECOND, 0)
+        val diffMs = target.timeInMillis - now.timeInMillis
+        return (diffMs / (24 * 60 * 60 * 1000L)).toInt().coerceAtLeast(0)
     }
+
+    private fun isToday(millis: Long): Boolean = calendarDaysUntil(millis) == 0
+
+    private fun isSpanish(): Boolean =
+        java.util.Locale.getDefault().language.equals("es", ignoreCase = true)
 
     // ── Renderizado AWT ───────────────────────────────────────────────────────
 

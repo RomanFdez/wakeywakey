@@ -63,12 +63,27 @@ class AppState {
     /** Muestra el paywall (trial expirado o usuario lo abre manualmente). */
     var showPaywall     by mutableStateOf(false)
 
-    // ── Alerta activa ─────────────────────────────────────────────────────────
-    var pendingAlert        by mutableStateOf<CalendarEvent?>(null)
-        private set
-    /** true cuando la alerta fue abierta manualmente (preview), no por el scheduler. */
-    var isPendingAlertPreview by mutableStateOf(false)
-        private set
+    // ── Cola de alertas ───────────────────────────────────────────────────────
+    /**
+     * Cada entrada guarda el evento y si fue abierta manualmente (preview).
+     * La primera entrada es la alerta actualmente visible en pantalla.
+     * Al descartar/unirse/snooze se elimina la primera y aparece la siguiente.
+     * Esto permite acumular alertas perdidas mientras el equipo estaba apagado.
+     */
+    private data class AlertEntry(val event: CalendarEvent, val isPreview: Boolean)
+    private var alertQueue by mutableStateOf(listOf<AlertEntry>())
+
+    /** Evento de la alerta actualmente visible (nulo si no hay ninguna). */
+    val pendingAlert: CalendarEvent?
+        get() = alertQueue.firstOrNull()?.event
+
+    /** true cuando la alerta activa fue abierta manualmente (preview). */
+    val isPendingAlertPreview: Boolean
+        get() = alertQueue.firstOrNull()?.isPreview ?: false
+
+    /** Número de alertas acumuladas pendientes de ver (incluye la activa). */
+    val pendingAlertCount: Int
+        get() = alertQueue.size
 
     // ── Pause ─────────────────────────────────────────────────────────────────
     val isPaused: Boolean
@@ -101,8 +116,16 @@ class AppState {
     val scheduler = DesktopScheduler(
         calendarRepo = activeRepo,
         onAlertFired = { event ->
-            isPendingAlertPreview = false
-            pendingAlert = event
+            // El scheduler corre en Dispatchers.Default; las mutaciones de estado
+            // Compose deben hacerse en el hilo principal (EDT en Desktop).
+            appScope.launch {
+                withContext(Dispatchers.Main) {
+                    if (alertQueue.none { it.event.id == event.id }) {
+                        // Inserta al frente: la alerta más reciente se muestra primero.
+                        alertQueue = listOf(AlertEntry(event, isPreview = false)) + alertQueue
+                    }
+                }
+            }
         },
     )
 
@@ -161,13 +184,11 @@ class AppState {
     // ── Acciones de alerta ────────────────────────────────────────────────────
 
     fun dismissAlert() {
-        pendingAlert = null
-        isPendingAlertPreview = false
+        alertQueue = alertQueue.drop(1)
     }
 
     fun snoozeAlert(event: CalendarEvent, delayMs: Long) {
-        pendingAlert = null
-        isPendingAlertPreview = false
+        alertQueue = alertQueue.drop(1)
         scheduler.snooze(event, delayMs)
     }
 
@@ -177,8 +198,10 @@ class AppState {
      */
     fun previewAlert(event: CalendarEvent) {
         showTrayPopup = false
-        isPendingAlertPreview = true
-        pendingAlert = event
+        // El preview se inserta al frente y no bloquea alertas reales que pueda haber
+        if (alertQueue.none { it.event.id == event.id }) {
+            alertQueue = listOf(AlertEntry(event, isPreview = true)) + alertQueue
+        }
     }
 
     // ── Debug helpers ─────────────────────────────────────────────────────────
@@ -221,8 +244,9 @@ class AppState {
         appScope.launch {
             delay(5_000L)
             withContext(Dispatchers.Main) {
-                isPendingAlertPreview = false
-                pendingAlert = fakeEvent
+                if (alertQueue.none { it.event.id == fakeEvent.id }) {
+                    alertQueue = listOf(AlertEntry(fakeEvent, isPreview = false)) + alertQueue
+                }
             }
         }
     }
