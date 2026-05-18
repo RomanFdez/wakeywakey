@@ -76,7 +76,7 @@ data class UserSettings(
     val showDevBar: Boolean = true,
 ) {
     val isPaused: Boolean get() =
-        pausedUntil != null && pausedUntil > System.currentTimeMillis()
+        pausedUntil != null && pausedUntil > currentTimeMillis()
 
     fun isCalendarEnabled(calendarId: Long): Boolean =
         enabledCalendarIds.isEmpty() || calendarId in enabledCalendarIds

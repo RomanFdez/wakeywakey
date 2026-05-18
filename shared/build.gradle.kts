@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
@@ -15,14 +17,15 @@ kotlin {
 
     jvm("desktop") // Windows (Compose Desktop)
 
-    // Fase 8 — iOS / macOS (mismo codebase, descomentar cuando toque)
-    // listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { target ->
-    //     target.binaries.framework {
-    //         baseName = "Shared"
-    //         isStatic = true
-    //     }
-    // }
-    // macosX64(); macosArm64()
+    // Fase 8 — iOS
+    val xcf = XCFramework("Shared")
+    listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "Shared"
+            isStatic = true
+            xcf.add(this)
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -56,6 +59,11 @@ kotlin {
                 // posthog-java añadir en Fase 5 (Windows) cuando confirmemos coordenadas Maven correctas
             }
         }
+
+        // iosMain: sin dependencias externas.
+        // IosCalendarRepository → platform.EventKit (Kotlin/Native built-in)
+        // IosAlarmScheduler     → platform.UserNotifications (Kotlin/Native built-in)
+        // CrashReporter/Analytics → stubs; Sentry + PostHog vía SPM desde apps/ios
     }
 }
 

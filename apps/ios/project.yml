@@ -1,0 +1,85 @@
+name: WakeyWakey
+options:
+  bundleIdPrefix: com.sierraespada
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  xcodeVersion: "15.4"
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""        # <-- rellena con tu Team ID de developer.apple.com
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  WakeyWakey:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: WakeyWakey
+        excludes:
+          - "**/.DS_Store"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sierraespada.wakeywakey
+        INFOPLIST_FILE: WakeyWakey/App/Info.plist
+      configs:
+        Debug:
+          FRAMEWORK_SEARCH_PATHS:
+            - $(inherited)
+            - $(SRCROOT)/../../shared/build/XCFrameworks/debug
+        Release:
+          FRAMEWORK_SEARCH_PATHS:
+            - $(inherited)
+            - $(SRCROOT)/../../shared/build/XCFrameworks/release
+    dependencies:
+      - framework: ../../shared/build/XCFrameworks/debug/Shared.xcframework
+        embed: true
+        codeSign: true
+    preBuildScripts:
+      - name: "[KMP] Build Shared XCFramework"
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          cd "${SRCROOT}/../.."
+          ./gradlew :shared:assembleSharedDebugXCFramework 2>&1 | tail -30
+    info:
+      path: WakeyWakey/App/Info.plist
+      properties:
+        CFBundleDisplayName: WakeyWakey
+        UILaunchScreen: {}
+        NSCalendarsFullAccessUsageDescription: "WakeyWakey necesita acceso completo al calendario para mostrarte tus reuniones y enviarte alertas antes de que empiecen."
+        NSCalendarsUsageDescription: "WakeyWakey necesita acceso al calendario para mostrarte tus reuniones."
+        UIBackgroundModes:
+          - fetch
+          - remote-notification
+
+  NotificationContent:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: NotificationContent
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sierraespada.wakeywakey.NotificationContent
+        INFOPLIST_FILE: NotificationContent/Info.plist
+    info:
+      path: NotificationContent/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionAttributes:
+            UNNotificationExtensionCategory: MEETING_ALERT
+            UNNotificationExtensionInitialContentSizeRatio: 1
+            UNNotificationExtensionDefaultContentHidden: true
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationViewController
+          NSExtensionPointIdentifier: com.apple.usernotifications.content-extension

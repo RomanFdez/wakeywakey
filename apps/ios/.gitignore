@@ -1,0 +1,19 @@
+# Xcode project generado por XcodeGen — no commitear, generar con: xcodegen generate
+*.xcodeproj/
+*.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+
+# Build
+DerivedData/
+build/
+
+# CocoaPods (si se usa en el futuro)
+Pods/
+Podfile.lock
+
+# SPM
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
