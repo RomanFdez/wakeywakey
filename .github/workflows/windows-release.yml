@@ -29,31 +29,19 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v3
 
-      # ── Inyectar credenciales OAuth ────────────────────────────────────────
-      - name: Inject OAuth credentials
-        shell: pwsh
-        env:
-          GID:     ${{ secrets.GOOGLE_CLIENT_ID }}
-          GSECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          MSID:    ${{ secrets.MICROSOFT_CLIENT_ID }}
-        run: |
-          $f = "apps/windows/src/jvmMain/kotlin/com/sierraespada/wakeywakey/windows/BuildConfig.kt"
-          $content = Get-Content $f -Raw
-          $content = $content -replace 'GOOGLE_CLIENT_ID\s*= ""',     "GOOGLE_CLIENT_ID     = `"$env:GID`""
-          $content = $content -replace 'GOOGLE_CLIENT_SECRET\s*= ""', "GOOGLE_CLIENT_SECRET = `"$env:GSECRET`""
-          $content = $content -replace 'MICROSOFT_CLIENT_ID\s*= ""',  "MICROSOFT_CLIENT_ID  = `"$env:MSID`""
-          Set-Content $f $content
-          Write-Host "OAuth credentials injected"
-
       # ── Build MSI + EXE ───────────────────────────────────────────────────
+      # Las credenciales OAuth se pasan como Gradle properties desde GitHub Secrets.
+      # generateBuildConfig las inyecta en AppBuildConfig.kt en tiempo de compilación.
       # shell: bash usa Git Bash en Windows → ejecuta ./gradlew (Unix script) correctamente.
-      # pwsh no puede ejecutar el Unix gradlew script directamente.
       - name: Build Windows installers
         shell: bash
         run: |
           ./gradlew :apps:windows:packageMsi :apps:windows:packageExe \
             -Prelease \
             -PappVersion=${{ github.event.inputs.version }} \
+            -PgoogleClientId="${{ secrets.GOOGLE_CLIENT_ID }}" \
+            -PgoogleClientSecret="${{ secrets.GOOGLE_CLIENT_SECRET }}" \
+            -PmicrosoftClientId="${{ secrets.MICROSOFT_CLIENT_ID }}" \
             --no-daemon \
             --no-configuration-cache \
             --rerun-tasks
@@ -69,7 +57,6 @@ jobs:
           Write-Host "=== Done ==="
 
       # ── Copiar con nombres fijos (sin versión) → URL permanente en web ─────
-      # URL en la web: /releases/latest/download/WakeyWakey-Setup.msi
       - name: Prepare artifacts with fixed names
         shell: pwsh
         run: |

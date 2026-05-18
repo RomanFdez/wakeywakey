@@ -10,11 +10,29 @@ plugins {
 val appVersion: String  = (project.findProperty("appVersion") as String?) ?: "0.1.0"
 val isRelease:  Boolean = project.hasProperty("release")
 
-// ── Genera AppBuildConfig.kt con IS_RELEASE como const val ───────────────────
+// Credenciales OAuth — leídas de Gradle properties o env vars.
+// En dev: cadenas vacías (la app cae al fallback ~/.wakeywakey/config.properties).
+// En release local: añadir a ~/.gradle/gradle.properties (nunca al repo).
+// En CI: pasadas como -PgoogleClientId=... etc. desde los GitHub Secrets.
+fun oauthProp(gradleProp: String, envVar: String): String =
+    (project.findProperty(gradleProp) as String?)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(envVar)?.takeIf { it.isNotBlank() }
+        ?: ""
+
+val googleClientId:     String = oauthProp("googleClientId",     "GOOGLE_CLIENT_ID")
+val googleClientSecret: String = oauthProp("googleClientSecret", "GOOGLE_CLIENT_SECRET")
+val microsoftClientId:  String = oauthProp("microsoftClientId",  "MICROSOFT_CLIENT_ID")
+
+// ── Genera AppBuildConfig.kt ──────────────────────────────────────────────────
+// Incluye IS_RELEASE y las credenciales OAuth compiladas en el binario.
 // El compilador Kotlin elimina los bloques `if (!IS_RELEASE)` en release builds.
 val generateBuildConfig by tasks.registering {
     val outputDir = layout.buildDirectory.dir("generated/buildconfig/kotlin")
-    inputs.property("isRelease", isRelease)   // ← invalida caché cuando cambia el flag
+    // Invalida caché cuando cambia cualquier input
+    inputs.property("isRelease",         isRelease)
+    inputs.property("googleClientId",     googleClientId)
+    inputs.property("googleClientSecret", googleClientSecret)
+    inputs.property("microsoftClientId",  microsoftClientId)
     outputs.dir(outputDir)
     doLast {
         val dir = outputDir.get().asFile.also { it.mkdirs() }
@@ -25,6 +43,12 @@ val generateBuildConfig by tasks.registering {
             object AppBuildConfig {
                 /** true en builds de release (-Prelease). Elimina todo el código dev en producción. */
                 const val IS_RELEASE: Boolean = $isRelease
+
+                // Credenciales OAuth compiladas en el binario.
+                // Vacías en dev — la app usa ~/.wakeywakey/config.properties como fallback.
+                const val GOOGLE_CLIENT_ID:     String = "$googleClientId"
+                const val GOOGLE_CLIENT_SECRET: String = "$googleClientSecret"
+                const val MICROSOFT_CLIENT_ID:  String = "$microsoftClientId"
             }
             """.trimIndent()
         )
