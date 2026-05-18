@@ -3,6 +3,7 @@ package com.sierraespada.wakeywakey.windows.scheduler
 import com.sierraespada.wakeywakey.calendar.CalendarRepository
 import com.sierraespada.wakeywakey.model.CalendarEvent
 import com.sierraespada.wakeywakey.windows.billing.DesktopEntitlementManager
+import com.sierraespada.wakeywakey.windows.calendar.CustomEventsRepository
 import com.sierraespada.wakeywakey.windows.settings.DesktopSettingsRepository
 import kotlinx.coroutines.*
 import java.util.Calendar
@@ -59,7 +60,7 @@ class DesktopScheduler(
 
         val now       = System.currentTimeMillis()
         val endOfDay  = todayEndMillis()
-        val events    = runCatching {
+        val calEvents = runCatching {
             calendarRepo.getUpcomingEvents(
                 fromTime     = now,
                 toTime       = endOfDay,
@@ -67,8 +68,11 @@ class DesktopScheduler(
             )
         }.getOrElse { emptyList() }
 
+        // Eventos manuales del usuario (siempre se programan, sin filtros de calendario)
+        val customEvents = CustomEventsRepository.upcomingEvents(fromMillis = now, toMillis = endOfDay)
+
         // Filtra igual que en Android (video-only, accepted-only, calendars)
-        val filtered = events.filter { event ->
+        val filtered = calEvents.filter { event ->
             val calOk   = settings.enabledCalendarIds.isEmpty() ||
                           event.calendarId in settings.enabledCalendarIds
             val videoOk = !settings.filterVideoOnly || event.meetingLink != null
@@ -83,14 +87,17 @@ class DesktopScheduler(
             } else list
         }
 
+        // Fusiona eventos de calendario + eventos manuales
+        val allEvents = (filtered + customEvents).distinctBy { it.id }
+
         // Cancela jobs de eventos que ya no están en la lista
-        val currentIds = filtered.map { it.id }.toSet()
+        val currentIds = allEvents.map { it.id }.toSet()
         scheduledJobs.keys.filterNot { it in currentIds }.forEach { id ->
             scheduledJobs.remove(id)?.cancel()
         }
 
         // Programa nuevos eventos
-        filtered.forEach { event ->
+        allEvents.forEach { event ->
             if (event.id !in scheduledJobs) {
                 val alertTime = event.startTime - settings.alertMinutesBefore * 60_000L
                 val delayMs   = alertTime - System.currentTimeMillis()

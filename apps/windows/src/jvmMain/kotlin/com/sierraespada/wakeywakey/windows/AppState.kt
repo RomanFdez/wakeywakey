@@ -5,6 +5,7 @@ import com.sierraespada.wakeywakey.calendar.StubCalendarRepository
 import com.sierraespada.wakeywakey.model.CalendarEvent
 import com.sierraespada.wakeywakey.windows.calendar.CalendarAccountManager
 import com.sierraespada.wakeywakey.windows.calendar.CombinedCalendarRepository
+import com.sierraespada.wakeywakey.windows.calendar.CustomEventsRepository
 import com.sierraespada.wakeywakey.windows.calendar.MacSystemCalendarRepository
 import com.sierraespada.wakeywakey.windows.home.HomeViewModel
 import com.sierraespada.wakeywakey.windows.scheduler.DesktopScheduler
@@ -170,6 +171,11 @@ class AppState {
                     scheduler.syncNow()
                 }
         }
+
+        // Re-sincroniza el scheduler cuando el usuario añade/elimina un evento manual
+        CustomEventsRepository.events
+            .onEach { scheduler.syncNow() }
+            .launchIn(appScope)
 
         scheduler.start()
         homeVm.start()

@@ -14,6 +14,7 @@ val isRelease:  Boolean = project.hasProperty("release")
 // El compilador Kotlin elimina los bloques `if (!IS_RELEASE)` en release builds.
 val generateBuildConfig by tasks.registering {
     val outputDir = layout.buildDirectory.dir("generated/buildconfig/kotlin")
+    inputs.property("isRelease", isRelease)   // ← invalida caché cuando cambia el flag
     outputs.dir(outputDir)
     doLast {
         val dir = outputDir.get().asFile.also { it.mkdirs() }

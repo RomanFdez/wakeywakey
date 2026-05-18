@@ -118,16 +118,16 @@ object AwtTrayManager {
             when {
                 daysAway == 0 -> {
                     // Hoy: muestra cuenta regresiva en minutos/segundos
-                    val minsLeft = ((next.startTime - now) / 60_000L).toInt().coerceAtLeast(0)
+                    val totalSecs = ((next.startTime - now) / 1000L).toInt().coerceAtLeast(0)
+                    val minsFloor = totalSecs / 60
+                    val secs      = totalSecs % 60
+                    // Ceiling: si quedan 1m30s el reloj muestra 11:42 y la reunión es a 11:44 → "2m"
+                    val minsCeil  = if (secs > 0) minsFloor + 1 else minsFloor
                     when {
-                        minsLeft <= 0 -> "now"
-                        minsLeft < 60 -> if (settings.countdownMinutesOnly) "${minsLeft}m"
-                                         else {
-                                             val s = (((next.startTime - now) / 1000L) % 60L)
-                                                         .toInt().coerceAtLeast(0)
-                                             "${minsLeft}m %02ds".format(s)
-                                         }
-                        else          -> "${minsLeft / 60}h ${minsLeft % 60}m"
+                        totalSecs <= 0  -> "now"
+                        minsFloor < 60  -> if (settings.countdownMinutesOnly) "${minsCeil}m"
+                                           else "${minsFloor}m %02ds".format(secs)
+                        else            -> "${minsFloor / 60}h ${minsFloor % 60}m"
                     }
                 }
                 daysAway == 1 -> if (isSpanish()) "Mañana" else "Tomorrow"

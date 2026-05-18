@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.rememberWindowState
 import com.sierraespada.wakeywakey.windows.PlatformMode
+import com.sierraespada.wakeywakey.windows.settings.AutostartManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -502,6 +503,17 @@ private fun DoneStep(
     connected:    Boolean,
     onFinish:     () -> Unit,
 ) {
+    // Launch at login — activado por defecto, solo en builds instalados (no en dev con jar)
+    var launchAtLogin by remember {
+        mutableStateOf(AutostartManager.isEnabled || AutostartManager.isSupported)
+    }
+    // Aplicar al montar (activa autostart por defecto si aún no estaba)
+    LaunchedEffect(Unit) {
+        if (AutostartManager.isSupported && !AutostartManager.isEnabled) {
+            AutostartManager.enable()
+        }
+    }
+
     Column(
         modifier            = Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -550,6 +562,51 @@ private fun DoneStep(
         }
 
         Spacer(Modifier.weight(1f))
+
+        // ── Launch at login toggle ────────────────────────────────────────────
+        if (AutostartManager.isSupported) {
+            Row(
+                modifier          = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(White.copy(alpha = 0.06f))
+                    .clickable {
+                        val newValue = !launchAtLogin
+                        if (newValue) AutostartManager.enable() else AutostartManager.disable()
+                        launchAtLogin = newValue
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Launch at login",
+                        color      = White,
+                        fontSize   = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "Start WakeyWakey automatically when you log in",
+                        color    = White.copy(alpha = 0.5f),
+                        fontSize = 12.sp,
+                    )
+                }
+                Switch(
+                    checked         = launchAtLogin,
+                    onCheckedChange = { newValue ->
+                        if (newValue) AutostartManager.enable() else AutostartManager.disable()
+                        launchAtLogin = newValue
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor       = Navy,
+                        checkedTrackColor       = Yellow,
+                        uncheckedThumbColor     = White.copy(alpha = 0.6f),
+                        uncheckedTrackColor     = White.copy(alpha = 0.15f),
+                    ),
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+        }
 
         Button(
             onClick  = onFinish,

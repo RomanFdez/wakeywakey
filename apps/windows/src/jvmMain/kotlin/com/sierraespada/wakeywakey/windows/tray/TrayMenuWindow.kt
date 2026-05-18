@@ -29,6 +29,8 @@ import com.sierraespada.wakeywakey.windows.PlatformMode
 import com.sierraespada.wakeywakey.windows.calendar.CustomEventsRepository
 import com.sierraespada.wakeywakey.windows.home.HomeUiState
 import com.sierraespada.wakeywakey.windows.settings.DesktopSettingsRepository
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import java.awt.Desktop
 import java.awt.GraphicsEnvironment
 import java.awt.event.WindowAdapter
@@ -628,11 +630,15 @@ private fun TrayEventRow(
         }
 
         // Botón eliminar solo para eventos propios
+        // pointerInput + detectTapGestures consume el evento y evitan que se propague
+        // al clickable del Row padre (que abriría la alerta en pantalla completa).
         if (isCustom && !isLocked) {
             Box(
                 modifier         = Modifier
                     .size(22.dp)
-                    .clickable { onDelete() },
+                    .pointerInput(onDelete) {
+                        detectTapGestures { onDelete() }
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 Text("✕", fontSize = 11.sp, color = Color.White.copy(alpha = 0.35f))
@@ -651,9 +657,9 @@ private fun buildTimeLabel(
     val endStr   = timeFmt.format(Date(event.endTime))
     val range    = "$startStr–$endStr"
     return when {
-        isOngoing     -> "● En curso · $range"
-        minsLeft <= 0 -> "Ahora · $range"
-        minsLeft < 60 -> "En ${minsLeft}m · $range"
+        isOngoing     -> "● In progress · $range"
+        minsLeft <= 0 -> "Now · $range"
+        minsLeft < 60 -> "In ${minsLeft}m · $range"
         else          -> range
     }
 }

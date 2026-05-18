@@ -76,7 +76,7 @@ fun AlertWindow(
     ) {
         // Trae la ventana al frente sin usar setFullScreenWindow (API legacy que en
         // macOS moderno puede emitir eventos de cierre durante la transición exclusiva).
-        DisposableEffect(Unit) {
+        DisposableEffect(event.id) {
             window.toFront()
             window.requestFocus()
             onDispose { }
@@ -84,7 +84,8 @@ fun AlertWindow(
 
         // Reproduce sonido de alerta; si está en bucle, lo para a los 30 s máximo.
         // En modo preview no suena.
-        DisposableEffect(Unit) {
+        // Key = event.id: se re-ejecuta cada vez que aparece una nueva alerta (cola acumulada).
+        DisposableEffect(event.id) {
             val s = com.sierraespada.wakeywakey.windows.settings.DesktopSettingsRepository.settings.value
             var soundJob: Job? = null
             val stopScope = CoroutineScope(Dispatchers.Default)
