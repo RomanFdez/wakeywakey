@@ -11,7 +11,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         center.delegate = self
         registerNotificationCategories(center: center)
 
-        // TODO Slice 5: inicializar Sentry y PostHog aquí con sus API keys
+        // TODO Slice 5: inicializar Sentry y PostHog
         // SentrySDK.start { options in options.dsn = "..." }
         // PostHogSDK.shared.setup(PostHogConfig(apiKey: "...", host: "..."))
 
@@ -25,11 +25,18 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // Muestra el banner incluso con la app en primer plano
-        completionHandler([.banner, .sound])
+        guard notification.request.content.categoryIdentifier == "MEETING_ALERT" else {
+            completionHandler([.banner, .sound])
+            return
+        }
+        // En foreground mostramos AlertView en lugar del banner del sistema
+        Task { @MainActor in
+            AlertCoordinator.shared.show(from: notification)
+        }
+        completionHandler([.sound]) // sonido sí, banner no (ya mostramos AlertView)
     }
 
-    // MARK: - Response handling
+    // MARK: - Response handling (app en background / notif tocada)
 
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -39,14 +46,25 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         let userInfo = response.notification.request.content.userInfo
 
         switch response.actionIdentifier {
+
         case "JOIN_NOW":
             openMeetingUrl(from: userInfo)
+
         case "SNOOZE_1MIN":
-            // TODO Slice 3: reprogramar notificación en 60 segundos
-            break
+            let title  = response.notification.request.content.title
+            let urlStr = userInfo["meeting_url"] as? String ?? ""
+            let url    = URL(string: urlStr)
+            Task { @MainActor in
+                await AlertScheduler.shared.snooze(
+                    notificationId: response.notification.request.identifier,
+                    title: title,
+                    meetingURL: url
+                )
+            }
+
         case UNNotificationDefaultActionIdentifier:
-            // El usuario tocó la notificación (no una acción)
             openMeetingUrl(from: userInfo)
+
         default:
             break
         }

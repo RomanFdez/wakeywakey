@@ -60,6 +60,19 @@ struct HomeView: View {
                             .foregroundStyle(Color.wkYellow)
                     }
                 }
+                #if DEBUG
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("🔔 Test") {
+                        AlertCoordinator.shared.activeAlert = AlertCoordinator.AlertInfo(
+                            notificationId: "test",
+                            title: "Standup diario",
+                            startTime: Date().addingTimeInterval(90),
+                            meetingURL: URL(string: "https://meet.google.com/abc-defg-hij")
+                        )
+                    }
+                    .foregroundStyle(Color.wkYellow)
+                }
+                #endif
             }
         }
         .onAppear {
