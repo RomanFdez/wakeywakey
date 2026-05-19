@@ -24,7 +24,7 @@ struct WakeyWakeyApp: App {
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 // Reprograma alarmas cada vez que la app vuelve al primer plano
-                calendarService.loadTodayEvents(enabledIds: settings.enabledCalendarIds)
+                calendarService.loadTodayEvents(enabledIds: settings.enabledCalendarIds, settings: settings)
                 Task { @MainActor in
                     await AlertScheduler.shared.rescheduleAll(
                         events: calendarService.todayEvents,

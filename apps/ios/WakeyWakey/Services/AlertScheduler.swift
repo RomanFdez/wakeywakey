@@ -27,12 +27,15 @@ class AlertScheduler {
         center.removePendingNotificationRequests(withIdentifiers: ["ww_event_\(eventIdentifier)"])
     }
 
-    // Reagenda la misma alarma 60 segundos en el futuro (snooze).
     func snooze(notificationId: String, title: String, meetingURL: URL?) async {
-        let content = baseContent(title: title, body: "Snoozed · empieza ahora", meetingURL: meetingURL)
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+        await snoozeSeconds(notificationId: notificationId, title: title, meetingURL: meetingURL, seconds: 60)
+    }
+
+    func snoozeSeconds(notificationId: String, title: String, meetingURL: URL?, seconds: Double) async {
+        let content = baseContent(title: title, body: "Pospuesto · empieza pronto", meetingURL: meetingURL)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(5, seconds), repeats: false)
         let request = UNNotificationRequest(
-            identifier: notificationId + "_snooze",
+            identifier: notificationId + "_snooze_\(Int(seconds))",
             content: content,
             trigger: trigger
         )
@@ -67,10 +70,11 @@ class AlertScheduler {
 
     private func baseContent(title: String, body: String, meetingURL: URL?) -> UNMutableNotificationContent {
         let c = UNMutableNotificationContent()
-        c.title              = title
-        c.body               = body
-        c.sound              = .default
-        c.categoryIdentifier = "MEETING_ALERT"
+        c.title                = title
+        c.body                 = body
+        c.sound                = .default
+        c.categoryIdentifier   = "MEETING_ALERT"
+        c.interruptionLevel    = .timeSensitive
         return c
     }
 }

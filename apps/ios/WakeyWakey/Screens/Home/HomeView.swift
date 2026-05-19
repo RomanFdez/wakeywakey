@@ -4,9 +4,31 @@ struct HomeView: View {
 
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var calendarService: CalendarService
+    @StateObject private var manualStore = ManualEventsStore.shared
 
     @State private var now = Date()
+    @State private var showSettings   = false
+    @State private var showAddManual  = false
+    @State private var selectedMeeting: AnyMeeting?
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    // Mezcla eventos de calendario y manuales, ordenados por hora
+    private var allEvents: [AnyMeeting] {
+        let fromCal = calendarService.todayEvents.map { AnyMeeting(calEvent: $0) }
+        let fromMan = manualStore.todayEvents.map    { AnyMeeting(manual: $0)   }
+        return (fromCal + fromMan)
+            .filter { $0.endDate > now }
+            .sorted { $0.startDate < $1.startDate }
+    }
+
+    private var nextMeeting: AnyMeeting? {
+        // Prioridad: evento que empieza en ≤5 min > evento en curso > próximo evento
+        let upcoming = allEvents.filter { $0.startDate > now }
+        if let imminent = upcoming.first(where: { $0.startDate.timeIntervalSince(now) <= 5 * 60 }) {
+            return imminent
+        }
+        return allEvents.first { $0.endDate > now }
+    }
 
     var body: some View {
         NavigationStack {
@@ -17,8 +39,8 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 0) {
 
                         // ── Próxima reunión ──────────────────────────────
-                        if let next = calendarService.nextEvent {
-                            NextMeetingCard(event: next, now: now)
+                        if let next = nextMeeting {
+                            NextMeetingCard(meeting: next, now: now)
                                 .padding(.horizontal, 20)
                                 .padding(.top, 8)
                                 .padding(.bottom, 24)
@@ -30,14 +52,17 @@ struct HomeView: View {
                         }
 
                         // ── Lista del día ────────────────────────────────
-                        if !calendarService.todayEvents.isEmpty {
+                        if !allEvents.isEmpty {
                             sectionHeader
                                 .padding(.horizontal, 20)
                                 .padding(.bottom, 12)
 
                             VStack(spacing: 8) {
-                                ForEach(calendarService.todayEvents, id: \.eventIdentifier) { event in
-                                    MeetingRow(event: event, now: now)
+                                ForEach(allEvents) { meeting in
+                                    Button { selectedMeeting = meeting } label: {
+                                        MeetingRow(meeting: meeting, now: now)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -47,37 +72,55 @@ struct HomeView: View {
                     }
                 }
                 .refreshable {
-                    calendarService.loadTodayEvents(enabledIds: settings.enabledCalendarIds)
+                    calendarService.loadTodayEvents(enabledIds: settings.enabledCalendarIds, settings: settings)
                 }
             }
-            .navigationTitle("WakeyWakey")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 1) {
+                        Text("WakeyWakey")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.white)
+                        Text(todayShort)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showAddManual = true } label: {
+                        Image(systemName: "plus")
+                            .foregroundStyle(Color.wkYellow)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { } label: {
+                    Button { showSettings = true } label: {
                         Image(systemName: "gearshape.fill")
                             .foregroundStyle(Color.wkYellow)
                     }
                 }
-                #if DEBUG
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("🔔 Test") {
-                        AlertCoordinator.shared.activeAlert = AlertCoordinator.AlertInfo(
-                            notificationId: "test",
-                            title: "Standup diario",
-                            startTime: Date().addingTimeInterval(90),
-                            meetingURL: URL(string: "https://meet.google.com/abc-defg-hij")
-                        )
-                    }
-                    .foregroundStyle(Color.wkYellow)
-                }
-                #endif
             }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+                .environmentObject(settings)
+                .environmentObject(calendarService)
+        }
+        .sheet(isPresented: $showAddManual) {
+            AddManualEventSheet(store: manualStore)
+        }
+        .sheet(item: $selectedMeeting) { meeting in
+            EventDetailSheet(
+                meeting: meeting,
+                onDelete: meeting.isManual ? {
+                    if let id = meeting.manualId { manualStore.delete(id: id) }
+                } : nil
+            )
         }
         .onAppear {
             calendarService.loadCalendars()
-            calendarService.loadTodayEvents(enabledIds: settings.enabledCalendarIds)
+            calendarService.loadTodayEvents(enabledIds: settings.enabledCalendarIds, settings: settings)
         }
         .onReceive(timer) { now = $0 }
     }
@@ -94,6 +137,13 @@ struct HomeView: View {
         fmt.dateFormat = "EEEE d MMMM"
         fmt.locale = Locale(identifier: "es")
         return fmt.string(from: Date()).uppercased()
+    }
+
+    private var todayShort: String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "EEEE, d MMM"
+        fmt.locale = Locale(identifier: "es")
+        return fmt.string(from: Date()).capitalized
     }
 }
 

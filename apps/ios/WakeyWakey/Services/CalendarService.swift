@@ -45,7 +45,7 @@ class CalendarService: ObservableObject {
 
     // MARK: - Today events
 
-    func loadTodayEvents(enabledIds: Set<String>) {
+    func loadTodayEvents(enabledIds: Set<String>, settings: SettingsStore? = nil) {
         guard isAuthorized else { return }
 
         let cal   = Calendar.current
@@ -57,9 +57,31 @@ class CalendarService: ObservableObject {
             : store.calendars(for: .event).filter { enabledIds.contains($0.calendarIdentifier) }
 
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
-        todayEvents = store.events(matching: predicate)
-            .filter { !$0.isAllDay }
-            .sorted { $0.startDate < $1.startDate }
+        var events = store.events(matching: predicate)
+
+        // Filtros de la sección Eventos
+        if let s = settings {
+            if !s.showAllDayEvents    { events = events.filter { !$0.isAllDay } }
+            if s.videoConferenceOnly  { events = events.filter { CalendarService.meetingLink(for: $0) != nil } }
+            if s.acceptedEventsOnly {
+                events = events.filter { event in
+                    guard let attendees = event.attendees,
+                          let me = attendees.first(where: { $0.isCurrentUser })
+                    else { return true }
+                    return me.participantStatus != .declined
+                }
+            }
+            if s.workingHoursOnly {
+                events = events.filter { event in
+                    let hour = cal.component(.hour, from: event.startDate)
+                    return hour >= s.workingHoursStart && hour < s.workingHoursEnd
+                }
+            }
+        } else {
+            events = events.filter { !$0.isAllDay }
+        }
+
+        todayEvents = events.sorted { $0.startDate < $1.startDate }
     }
 
     var nextEvent: EKEvent? {
@@ -69,7 +91,7 @@ class CalendarService: ObservableObject {
 
     // MARK: - Meeting link detection
 
-    static func meetingLink(for event: EKEvent) -> URL? {
+    nonisolated static func meetingLink(for event: EKEvent) -> URL? {
         // Check EKEvent.url first (Google Calendar, Zoom invites often set this)
         if let url = event.url, isMeetingURL(url) { return url }
 
@@ -78,12 +100,12 @@ class CalendarService: ObservableObject {
         return extractURL(from: text)
     }
 
-    private static func isMeetingURL(_ url: URL) -> Bool {
+    private nonisolated static func isMeetingURL(_ url: URL) -> Bool {
         let host = url.host ?? ""
         return meetingHosts.contains { host.contains($0) }
     }
 
-    private static func extractURL(from text: String) -> URL? {
+    private nonisolated static func extractURL(from text: String) -> URL? {
         guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
         let matches = detector.matches(in: text, range: NSRange(text.startIndex..., in: text))
         for match in matches {

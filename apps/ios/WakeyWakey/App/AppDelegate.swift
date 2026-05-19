@@ -63,7 +63,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             }
 
         case UNNotificationDefaultActionIdentifier:
-            openMeetingUrl(from: userInfo)
+            // Abre AlertView para que el usuario vea el countdown y decida unirse
+            Task { @MainActor in
+                AlertCoordinator.shared.show(from: response.notification)
+            }
 
         default:
             break

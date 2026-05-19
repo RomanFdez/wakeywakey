@@ -52,6 +52,10 @@ targets:
           set -e
           cd "${SRCROOT}/../.."
           ./gradlew :shared:assembleSharedDebugXCFramework 2>&1 | tail -30
+    entitlements:
+      path: WakeyWakey/App/WakeyWakey.entitlements
+      properties:
+        com.apple.developer.usernotifications.time-sensitive: true
     info:
       path: WakeyWakey/App/Info.plist
       properties:
