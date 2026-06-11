@@ -79,7 +79,9 @@ if cmd == "events" {
     let fromDate = Date(timeIntervalSince1970: Double(fromMs) / 1000.0)
     let toDate   = Date(timeIntervalSince1970: Double(toMs)   / 1000.0)
 
-    let predicate = store.predicateForEvents(withStart: fromDate, end: toDate, calendars: nil)
+    // Pass all calendars explicitly — nil omits subscription calendars on some macOS versions
+    let allCalendars = store.calendars(for: .event)
+    let predicate = store.predicateForEvents(withStart: fromDate, end: toDate, calendars: allCalendars)
     let events    = store.events(matching: predicate)
 
     for ev in events {

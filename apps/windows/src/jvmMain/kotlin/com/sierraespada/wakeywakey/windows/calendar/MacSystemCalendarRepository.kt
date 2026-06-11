@@ -77,7 +77,7 @@ class MacSystemCalendarRepository : CalendarRepository {
                         // parts[3] = cal.source.title desde CalendarHelper (e.g. "Gmail", "iCloud")
                         val accountName = parts.getOrNull(3)?.trim()?.takeIf { it.isNotBlank() } ?: "Calendar"
                         DeviceCalendar(
-                            id          = parts.getOrNull(1)?.trim()?.hashCode()?.toLong() ?: 0L,
+                            id          = parts.getOrNull(1)?.trim()?.hashCode()?.toLong()?.and(0x7FFF_FFFFL) ?: 0L,
                             name        = parts.getOrNull(0)?.trim() ?: "Unknown",
                             accountName = accountName,
                             color       = rawColor.hexRgbToArgb() ?: 0xFF4285F4.toInt(),
@@ -131,7 +131,7 @@ class MacSystemCalendarRepository : CalendarRepository {
                     val isRecurring = p.getOrNull(9)?.trim()?.equals("true", ignoreCase = true) ?: false
 
                     CalendarEvent(
-                        id           = (calId + startMs).hashCode().toLong() and 0x7FFF_FFFFL,
+                        id           = "$calId|$startMs|$title".hashCode().toLong() and 0x7FFF_FFFFL,
                         title        = title,
                         startTime    = startMs,
                         endTime      = endMs,
