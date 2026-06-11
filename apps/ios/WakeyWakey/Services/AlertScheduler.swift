@@ -1,6 +1,7 @@
 import Foundation
 import UserNotifications
 import EventKit
+import AVFoundation
 
 @MainActor
 class AlertScheduler {
@@ -9,17 +10,23 @@ class AlertScheduler {
 
     private let center = UNUserNotificationCenter.current()
 
-    // Cancela todas las alarmas WakeyWakey pendientes y reprograma con los eventos de hoy.
-    func rescheduleAll(events: [EKEvent], minutesBefore: Int) async {
+    func rescheduleAll(events: [AnyMeeting], minutesBefore: Int, soundName: String = "clock-alarm") async {
+        guard EntitlementManager.shared.isPro else {
+            let pending = await center.pendingNotificationRequests()
+            let stale   = pending.filter { $0.identifier.hasPrefix("ww_event_") }.map { $0.identifier }
+            center.removePendingNotificationRequests(withIdentifiers: stale)
+            return
+        }
+
         let pending = await center.pendingNotificationRequests()
         let stale   = pending.filter { $0.identifier.hasPrefix("ww_event_") }.map { $0.identifier }
         center.removePendingNotificationRequests(withIdentifiers: stale)
 
         let now = Date()
-        for event in events {
-            let triggerAt = event.startDate.addingTimeInterval(-Double(minutesBefore) * 60)
+        for meeting in events {
+            let triggerAt = meeting.startDate.addingTimeInterval(-Double(minutesBefore) * 60)
             guard triggerAt > now else { continue }
-            await schedule(event: event, triggerAt: triggerAt, minutesBefore: minutesBefore)
+            await schedule(meeting: meeting, triggerAt: triggerAt, minutesBefore: minutesBefore, soundName: soundName)
         }
     }
 
@@ -44,37 +51,46 @@ class AlertScheduler {
 
     // MARK: - Private
 
-    private func schedule(event: EKEvent, triggerAt: Date, minutesBefore: Int) async {
-        let url   = CalendarService.meetingLink(for: event)
-        let body  = minutesBefore == 0
-            ? "Empezando ahora"
-            : "Empieza en \(minutesBefore) min\(url != nil ? " · Toca para unirte" : "")"
+    private func schedule(meeting: AnyMeeting, triggerAt: Date, minutesBefore: Int, soundName: String = "clock-alarm") async {
+        let url  = meeting.meetingURL
+        let body: String
+        if minutesBefore <= 1 {
+            body = url != nil ? "Empieza ahora · Toca para unirte" : "Empieza ahora"
+        } else {
+            body = "Empieza en \(minutesBefore) min\(url != nil ? " · Toca para unirte" : "")"
+        }
 
-        let content = baseContent(title: event.title ?? "Reunión", body: body, meetingURL: url)
+        let content = baseContent(title: meeting.title, body: body, meetingURL: url, soundName: soundName)
         content.userInfo = [
-            "event_id"    : event.eventIdentifier ?? "",
+            "event_id"    : meeting.id,
             "meeting_url" : url?.absoluteString ?? "",
-            "start_time"  : event.startDate.timeIntervalSince1970,
-            "title"       : event.title ?? "Reunión",
+            "start_time"  : meeting.startDate.timeIntervalSince1970,
+            "title"       : meeting.title,
         ]
 
         let comps   = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: triggerAt)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
         let request = UNNotificationRequest(
-            identifier: "ww_event_\(event.eventIdentifier ?? UUID().uuidString)",
+            identifier: "ww_event_\(meeting.id)",
             content: content,
             trigger: trigger
         )
         try? await center.add(request)
     }
 
-    private func baseContent(title: String, body: String, meetingURL: URL?) -> UNMutableNotificationContent {
+    private func baseContent(title: String, body: String, meetingURL: URL?, soundName: String = "clock-alarm") -> UNMutableNotificationContent {
         let c = UNMutableNotificationContent()
-        c.title                = title
-        c.body                 = body
-        c.sound                = .default
-        c.categoryIdentifier   = "MEETING_ALERT"
-        c.interruptionLevel    = .timeSensitive
+        c.title              = title
+        c.body               = body
+        c.categoryIdentifier = "MEETING_ALERT"
+        c.interruptionLevel  = .timeSensitive
+        if soundName == "default" {
+            c.sound = .default
+        } else {
+            // .caf is the only format iOS guarantees for UNNotificationSound;
+            // MP3 is not officially supported and plays silently on many devices.
+            c.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: "\(soundName).caf"))
+        }
         return c
     }
 }

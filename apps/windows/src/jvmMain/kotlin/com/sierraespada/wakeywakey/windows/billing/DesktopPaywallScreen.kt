@@ -435,5 +435,11 @@ private fun LicenseActivationRow(onActivated: () -> Unit) {
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 private fun openCheckout(plan: Plan) {
-    runCatching { Desktop.getDesktop().browse(URI(plan.url)) }
+    // Añade success_url para que LemonSqueezy redirija a la app con la license key
+    // tras el pago: wakeywakey://activate?key={license_key}
+    val successUrl = java.net.URLEncoder.encode(
+        "wakeywakey://activate?key={license_key}", "UTF-8"
+    )
+    val urlWithRedirect = "${plan.url}?checkout[success_url]=$successUrl"
+    runCatching { Desktop.getDesktop().browse(URI(urlWithRedirect)) }
 }

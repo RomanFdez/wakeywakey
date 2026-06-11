@@ -45,6 +45,14 @@ class ManualEventsStore: ObservableObject {
             .sorted { $0.startDate < $1.startDate }
     }
 
+    var weekEvents: [ManualEvent] {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: Date())
+        let end   = cal.date(byAdding: .day, value: 7, to: start)!
+        return events.filter { $0.startDate >= start && $0.startDate < end }
+            .sorted { $0.startDate < $1.startDate }
+    }
+
     private func save() {
         if let data = try? JSONEncoder().encode(events) {
             UserDefaults.standard.set(data, forKey: key)

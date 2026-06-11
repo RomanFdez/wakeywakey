@@ -158,7 +158,7 @@ class GoogleCalendarRepository : CalendarRepository {
             parameter("timeMax",      Instant.ofEpochMilli(toTime).toString())
             parameter("singleEvents", "true")
             parameter("orderBy",      "startTime")
-            parameter("maxResults",   "50")
+            parameter("maxResults",   "200")
         }
         val body = resp.body<GoogleEventsResponse>()
 

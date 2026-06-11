@@ -3,6 +3,17 @@ import SwiftUI
 struct NextMeetingCard: View {
 
     let meeting: AnyMeeting
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            CardContent(meeting: meeting, now: context.date)
+        }
+    }
+}
+
+private struct CardContent: View {
+
+    let meeting: AnyMeeting
     let now: Date
 
     private var secondsLeft: TimeInterval { meeting.startDate.timeIntervalSince(now) }
@@ -21,7 +32,7 @@ struct NextMeetingCard: View {
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(labelColor)
                         if isOngoing {
-                            Text("Ongoing")
+                            Text("En curso")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(.black)
                                 .padding(.horizontal, 6)
@@ -38,11 +49,11 @@ struct NextMeetingCard: View {
                 }
                 Spacer()
 
-                // Reloj circular
+                // Reloj circular — hora fija de inicio
                 ZStack {
                     Circle()
                         .stroke(isImminent ? Color.wkNavy.opacity(0.2) : Color.white.opacity(0.15), lineWidth: 3)
-                    Text(timeString)
+                    Text(Self.timeFmt.string(from: meeting.startDate))
                         .font(.system(size: 13, weight: .bold, design: .monospaced))
                         .foregroundStyle(isImminent ? Color.wkNavy : .white)
                 }
@@ -64,7 +75,7 @@ struct NextMeetingCard: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "video.fill")
-                        Text("Join now")
+                        Text("Unirse ahora")
                             .fontWeight(.bold)
                     }
                     .font(.system(size: 16))
@@ -83,6 +94,8 @@ struct NextMeetingCard: View {
         .animation(.easeInOut(duration: 0.4), value: isUrgent)
         .animation(.easeInOut(duration: 0.4), value: isImminent)
     }
+
+    // MARK: - Helpers
 
     private var isUrgent: Bool { secondsLeft <= 2 * 60 && secondsLeft > 0 }
 
@@ -105,12 +118,6 @@ struct NextMeetingCard: View {
         return countdownText
     }
 
-    private var timeString: String {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "HH:mm"
-        return fmt.string(from: meeting.startDate)
-    }
-
     private var countdownText: String {
         let s = max(0, Int(secondsLeft))
         let h = s / 3600
@@ -122,4 +129,10 @@ struct NextMeetingCard: View {
         if m > 0  { return "en \(m)m \(sec)s" }
         return "en \(sec)s"
     }
+
+    private static let timeFmt: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
 }

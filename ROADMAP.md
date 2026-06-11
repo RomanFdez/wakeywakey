@@ -62,7 +62,7 @@
 
 **Recomendación:** **Opción A (Kotlin Multiplatform)** — el roadmap siguiente asume esta.
 
-> **Nota:** KMP soporta iOS y macOS de serie (Kotlin/Native + Compose Multiplatform). **macOS se trabaja junto con Windows en la Fase 5** (mismo binario JVM Compose for Desktop). iOS queda diferido a Fase 8.
+> **Nota:** KMP soporta iOS y macOS de serie (Kotlin/Native + Compose Multiplatform). **macOS se trabajó junto con Windows en la Fase 5** (mismo binario JVM Compose for Desktop). **iOS está en desarrollo activo en Fase 8** (SwiftUI nativo + framework iOS desde `/shared`).
 
 ### Backend
 - **Supabase** (Postgres + Auth + Realtime + Edge Functions) — mejor DX que Firebase y más portable
@@ -317,8 +317,8 @@
 ---
 
 ### 🖥️ Fase 5 — Desktop: Windows + macOS (6-8 semanas)
-> 🚧 **En curso — Slices 5.1–5.6 completados (2026-05-08).**
-> Mismo codebase Compose for Desktop sirve a Windows y macOS. macOS DMG firmado y notarizando ahora; Windows pendiente de firma Authenticode.
+> ✅ **Fase 5 completada — 2026-05-18**
+> Mismo codebase Compose for Desktop sirve a Windows y macOS. Bugs de producción corregidos y publicado en GitHub Releases.
 
 1. ~~**Port a Compose for Desktop** reutilizando `/shared`.~~ → ✅ **Slice 5.1 (app shell)** — corre en Windows y macOS con la misma base JVM.
 2. **Calendarios:**
@@ -351,53 +351,41 @@
    - ~~macOS: `WakeyWakey.icns` + `icon.iconset` (16→1024 + @2x).~~ → ✅
 6. **Sync de settings con la cuenta (Supabase).** → ⏳ pendiente
 7. ~~**Publicar app OAuth de Google**~~ → ✅ **completo (2026-05-08)** — pasada de "Testing" a Producción y verificada por Google. Cualquier usuario puede autenticar Google Calendar sin estar en lista blanca.
-8. **Pendiente macOS:**
+8. ~~**macOS:**~~
    - ~~Notarización del `.dmg`~~ ✅ Accepted (2026-05-08)
    - ~~Stapler del ticket~~ ✅ aplicado (2026-05-08)
-   - 📋 Subir DMG firmado+notarizado a sierraespada.com (descarga directa)
-   - 📋 Decidir Mac App Store vs distribución directa (App Store exige sandbox y comisión 15-30%; distribución directa más sencilla con DMG notarizado)
-9. **Pendiente Windows:**
-   - Firma Authenticode con cert EV (~$200/año) — cuando se compre el cert
-   - Decidir: distribución directa (.msi/.exe firmados) y/o Microsoft Store (.msix)
+   - ~~DMG profesional con fondo amarillo `#FFE03A` + symlink a Applications~~ ✅ (2026-05-18, `create-dmg`)
+   - ~~Subir DMG a GitHub Release~~ ✅ URL permanente: `/releases/latest/download/WakeyWakey.dmg`
+   - Distribución directa elegida (vs Mac App Store — sandbox demasiado restrictivo para EventKit)
+9. ~~**Windows:**~~
+   - ~~MSI + EXE via GitHub Actions CI~~ ✅ (2026-05-18)
+   - ~~URLs permanentes: `WakeyWakey-Setup.msi` / `WakeyWakey-Setup.exe`~~ ✅
+   - Firma Authenticode (cert EV ~$200/año) — diferido a cuando haya ingresos
+   - Microsoft Store (.msix) — diferido
+10. ~~**Bugs corregidos post-launch (2026-05-18):**~~
+    - ~~Countdown: mostraba 1m cuando faltaban 1m59s — corregido con ceil~~
+    - ~~Sonido: no se reproducía en alertas apiladas — `DisposableEffect(event.id)`~~
+    - ~~Eventos manuales: no generaban alertas — `DesktopScheduler` fusiona `CustomEventsRepository`~~
+    - ~~Botón ✕ de eventos manuales: abría alerta en vez de borrar — `pointerInput + detectTapGestures`~~
+    - ~~Pipeline de credenciales OAuth: `~/.gradle/gradle.properties` → `AppBuildConfig.kt`~~
+11. ~~**Bugs corregidos post-launch (2026-06-01):**~~
+    - ~~Dos reuniones a la misma hora en el mismo calendario solo mostraba una — `MacSystemCalendarRepository` generaba ID idéntico con `(calId + startMs).hashCode()`; corregido incluyendo el título: `"$calId|$startMs|$title".hashCode()`~~
+    - ~~Firma del .app incompleta para notarización — `.jnilib` dentro de JARs (`jansi`, `skiko`) y `jspawnhelper` sin firma; proceso manual de extracción → firma → reempaquetado documentado en `memory/build_release_desktop.md`~~
+    - ~~DMG subido con nombre de versión (`WakeyWakey-1.0.0.dmg`) roto la URL permanente — ahora siempre se sube como `WakeyWakey.dmg`~~
 
 ---
 
-### 🌐 Fase 6 — Web SierraEspada (iniciar en Fase 0, lista antes de Fase 3)
+### 🌐 Fase 6 — Web SierraEspada
+> ✅ **Fase 6 completada — 2026-05-18**
 
-**Objetivo:** web corporativa de SierraEspada que presenta WakeyWakey y sirve como hub de producto, legal y marketing. Es el único dominio necesario (sierraespada.com).
+- sierraespada.com activo con página de producto WakeyWakey
+- Botones de descarga funcionales: DMG (macOS), EXE + MSI (Windows), Play Store (Android)
+- URLs permanentes vía GitHub Releases (`/releases/latest/download/`)
+- Privacy Policy + Terms of Service publicados
+- Legal, producto y descargas online
 
-**Estado:** ✅ **Dominio sierraespada.com verificado (2026-05-08)** — pendiente landing/marketing.
-
-**Stack:** Astro + Tailwind CSS · Deploy en Vercel · i18n EN + ES desde v1.
-
-#### Estructura de páginas
-- `/` — homepage SierraEspada: estudio indie, apps que hace, valores
-- `/apps/wakeywakey` — página de producto:
-  - Hero con video/GIF de la alerta en acción
-  - Features detalladas
-  - Pricing (tabla Free / Pro / Family / Team)
-  - Botones de descarga (Android, Windows; iOS/macOS cuando estén)
-  - Screenshots localizadas
-  - Testimonios / reviews (añadir tras beta)
-- `/blog` — SEO: "how to not miss meetings", "ADHD productivity tools", "best meeting reminder Android", etc.
-- `/press` — press kit (logo, screenshots, descripción, contacto)
-- `/help` — FAQ de WakeyWakey
-- `/legal/privacy` — Privacy Policy (EN + ES)
-- `/legal/terms` — Terms of Service (EN + ES)
-- `/waitlist` — captura email pre-lanzamiento (integrar Resend / Loops)
-
-#### Tareas
-1. **Deploy Cloudflare Worker** (`cd cloudflare && npm install && wrangler deploy`) — activa sierraespada.com con las páginas legales ya creadas en `docs/legal/`
-2. Setup repo `/web` en el monorepo o repo separado bajo SierraEspada GitHub
-3. Diseño en Figma: homepage + página WakeyWakey
-4. Componentes Astro + Tailwind con sistema de diseño WakeyWakey (colores, fuentes)
-5. Integración Resend para waitlist
-6. SEO técnico: sitemap, og:image, schema.org (SoftwareApplication)
-7. Analytics: PostHog
-8. Migrar Worker a Astro en producción; mantener `/legal/*` y redirects
-
-#### 6.2 App web (después de Fase 5 — Windows)
-Opcional: versión web (PWA). Limitaciones (no puede mostrar fullscreen si pestaña inactiva) pero útil como companion para equipos.
+#### 6.2 App web (diferido)
+Opcional post-launch: versión web (PWA). No puede mostrar fullscreen si pestaña inactiva — útil solo como companion para equipos.
 
 ---
 
@@ -412,9 +400,42 @@ Opcional: versión web (PWA). Limitaciones (no puede mostrar fullscreen si pesta
 
 ---
 
-### 🍎 Fase 8 — iOS (opcional, solo si tracciona) (8-10 semanas)
-- KMP comparte lógica, UI nativa SwiftUI o Compose iOS.
-- Entrar en el terreno de "In Your Face": hay que diferenciarse por precio y features (plan family, integración Todoist/Notion, sync Windows).
+### 🍎 Fase 8 — iOS (8-10 semanas)
+> 🚧 **En curso — Slices 0–4b completados + features avanzadas en desarrollo.**
+> Decidido: arrancar iOS antes de validar tracción (la inversión en SwiftUI es contenida y abre el mercado donde "In Your Face" ya factura).
+> Stack: SwiftUI nativo + lógica compartida desde `/shared` (KMP) vía framework iOS.
+
+**Completado (commiteado):**
+1. ~~**Slice 0 — Bootstrap KMP + Xcode scaffold**~~ ✅
+   - Target `iosMain` en `/shared` exportando framework
+   - Proyecto Xcode generado vía `xcodegen` (`apps/ios/project.yml`)
+   - App + AppDelegate + entitlements iniciales
+2. ~~**Slice 1 — Onboarding 4 pasos**~~ ✅
+   - Bienvenida → Permisos (notifs, EventKit) → Selector calendarios → Listo
+3. ~~**Slice 2 — HomeScreen con countdown + lista del día**~~ ✅
+   - `NextMeetingCard`, `MeetingRow`, refresco en vivo
+   - `CalendarService` sobre EventKit
+4. ~~**Slice 3 — Alert system**~~ ✅
+   - `AlertView` (full-screen sheet), `AlertScheduler`, `AlertCoordinator`
+5. ~~**Slices 4-4b — Settings + Home improvements + Alert redesign**~~ ✅
+   - `SettingsView` con paridad funcional vs Android/Desktop
+   - `SettingsStore`, `ManualEventsStore`
+
+**En desarrollo (sin commitear aún):**
+- **Billing iOS** (`Billing/EntitlementManager.swift` + `PaywallView.swift`) — paywall nativo iOS. Decisión pendiente: StoreKit 2 directo vs RevenueCat iOS SDK.
+- **Widget WakeyWakeyWidget** (`NextMeetingWidget.swift`) — widget Home/Lock screen con próxima reunión.
+- **Live Activity** (`LiveActivityManager.swift`) — Dynamic Island + Lock screen countdown live.
+- **Notification Service / Content Extension** (`NotificationContent/NotificationViewController.swift`) — alertas full-screen estilo IYF vía custom notification UI.
+- **Pack de sonidos iOS** (`Resources/Sounds/` + `Models/AlertSound.swift`) — paridad con desktop.
+- **`PrivacyInfo.xcprivacy`** — manifest de privacidad obligatorio App Store desde 2024.
+- **`Shared/`** — código Swift compartido entre app principal, widget y notif extension.
+
+**Pendiente:**
+- Pulido UI iOS (light/dark, Dynamic Type, accesibilidad VoiceOver)
+- TestFlight interno
+- App Store Connect — ficha, screenshots, review
+- Decisión: ¿coordinar launch iOS con Android-prod + Desktop ya live, o lanzar iOS por separado cuando esté listo?
+- Mac App Store via Mac Catalyst → diferido (ya tenemos DMG distribución directa)
 
 ---
 
@@ -625,4 +646,4 @@ Opcional: versión web (PWA). Limitaciones (no puede mostrar fullscreen si pesta
 
 ---
 
-*Documento vivo. Última actualización: 2026-05-08.*
+*Documento vivo. Última actualización: 2026-06-01.*

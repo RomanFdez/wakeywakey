@@ -1,10 +1,41 @@
 import SwiftUI
+import AVFoundation
+
+// Plays a sound on loop until stop() is called.
+@MainActor
+private class AlertSoundRepeater: ObservableObject {
+    private var player: AVAudioPlayer?
+
+    func start(soundName: String) {
+        // AVAudioPlayer supports .mp3; use it for the in-app repeating sound.
+        // Falls back to .caf if .mp3 is not in the bundle.
+        let url = Bundle.main.url(forResource: soundName, withExtension: "mp3")
+                ?? Bundle.main.url(forResource: soundName, withExtension: "caf")
+        guard let url else { return }
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+            player = try AVAudioPlayer(contentsOf: url)
+            player?.numberOfLoops = -1   // loop forever until stop()
+            player?.play()
+        } catch {
+            print("AlertSoundRepeater error: \(error)")
+        }
+    }
+
+    func stop() {
+        player?.stop()
+        player = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+}
 
 struct AlertView: View {
 
     let info: AlertCoordinator.AlertInfo
 
     @EnvironmentObject var coordinator: AlertCoordinator
+    @StateObject private var repeater   = AlertSoundRepeater()
     @State private var now              = Date()
     @State private var showCustomSnooze = false
     @State private var swipeOffset: CGFloat = 0
@@ -107,6 +138,15 @@ struct AlertView: View {
                     .padding(.top, 24)
                     .padding(.bottom, 52)
             }
+        }
+        .onAppear {
+            let s = SettingsStore.shared
+            if s.soundEnabled && s.repeatSoundUntilDismiss {
+                repeater.start(soundName: s.alertSoundName)
+            }
+        }
+        .onDisappear {
+            repeater.stop()
         }
         .onReceive(timer) { now = $0 }
         .sheet(isPresented: $showCustomSnooze) {

@@ -112,6 +112,7 @@ struct MeetingRow: View {
     private var dotColor: Color {
         if isNow  { return .green }
         if isPast { return .white.opacity(0.2) }
+        if let cg = meeting.calendarColor { return Color(cgColor: cg) }
         return .white.opacity(0.5)
     }
 
@@ -128,8 +129,12 @@ struct MeetingRow: View {
     }
 
     private func timeString(_ date: Date) -> String {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "HH:mm"
-        return fmt.string(from: date)
+        Self.timeFmt.string(from: date)
     }
+
+    private static let timeFmt: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
 }

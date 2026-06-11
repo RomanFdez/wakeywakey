@@ -174,7 +174,7 @@ class MicrosoftCalendarRepository : CalendarRepository {
             bearerAuth(token)
             parameter("startDateTime", startIso)
             parameter("endDateTime",   endIso)
-            parameter("\$top",         "50")
+            parameter("\$top",         "200")
             parameter("\$orderby",     "start/dateTime")
             parameter("\$select",
                 "id,subject,bodyPreview,body,start,end,location,isAllDay," +

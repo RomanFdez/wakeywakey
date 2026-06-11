@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 
 class SettingsStore: ObservableObject {
 
@@ -21,10 +22,6 @@ class SettingsStore: ObservableObject {
     @Published var repeatSoundUntilDismiss: Bool {
         didSet { defaults.set(repeatSoundUntilDismiss, forKey: Keys.repeatSound) }
     }
-    @Published var vibrationEnabled: Bool {
-        didSet { defaults.set(vibrationEnabled, forKey: Keys.vibration) }
-    }
-
     // MARK: - Eventos
     @Published var videoConferenceOnly: Bool {
         didSet { defaults.set(videoConferenceOnly, forKey: Keys.videoOnly) }
@@ -49,6 +46,11 @@ class SettingsStore: ObservableObject {
         didSet { defaults.set(Array(workingDays), forKey: Keys.workingDays) }
     }
 
+    // MARK: - Sonido de alerta
+    @Published var alertSoundName: String {
+        didSet { defaults.set(alertSoundName, forKey: Keys.alertSound) }
+    }
+
     // MARK: - Calendarios
     @Published var enabledCalendarIds: Set<String> {
         didSet { defaults.set(Array(enabledCalendarIds), forKey: Keys.calendarIds) }
@@ -63,7 +65,6 @@ class SettingsStore: ObservableObject {
 
         soundEnabled            = defaults.value(forKey: Keys.soundEnabled)    as? Bool ?? true
         repeatSoundUntilDismiss = defaults.value(forKey: Keys.repeatSound)     as? Bool ?? false
-        vibrationEnabled        = defaults.value(forKey: Keys.vibration)       as? Bool ?? true
         videoConferenceOnly     = defaults.value(forKey: Keys.videoOnly)       as? Bool ?? false
         acceptedEventsOnly      = defaults.value(forKey: Keys.acceptedOnly)    as? Bool ?? true
         showAllDayEvents        = defaults.value(forKey: Keys.allDay)          as? Bool ?? false
@@ -71,6 +72,7 @@ class SettingsStore: ObservableObject {
         workingHoursStart       = defaults.value(forKey: Keys.workingHoursStart) as? Int ?? 9
         workingHoursEnd         = defaults.value(forKey: Keys.workingHoursEnd)   as? Int ?? 18
         workingDays             = Set(defaults.array(forKey: Keys.workingDays) as? [Int] ?? [2,3,4,5,6])
+        alertSoundName          = defaults.string(forKey: Keys.alertSound) ?? AlertSound.defaultName
     }
 
     func completeOnboarding() { onboardingCompleted = true }
@@ -81,7 +83,6 @@ class SettingsStore: ObservableObject {
         static let minutesBefore       = "minutes_before"
         static let soundEnabled        = "sound_enabled"
         static let repeatSound         = "repeat_sound"
-        static let vibration           = "vibration_enabled"
         static let videoOnly           = "video_conference_only"
         static let acceptedOnly        = "accepted_events_only"
         static let allDay              = "show_all_day_events"
@@ -89,5 +90,6 @@ class SettingsStore: ObservableObject {
         static let workingHoursStart   = "working_hours_start"
         static let workingHoursEnd     = "working_hours_end"
         static let workingDays         = "working_days"
+        static let alertSound          = "alert_sound_name"
     }
 }

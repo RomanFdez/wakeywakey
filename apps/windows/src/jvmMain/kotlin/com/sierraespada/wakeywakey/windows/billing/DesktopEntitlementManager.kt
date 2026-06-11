@@ -53,9 +53,9 @@ object DesktopEntitlementManager {
     const val PRICE_ANNUAL   = "€14.99"
     const val PRICE_LIFETIME = "€59"
 
-    const val CHECKOUT_MONTHLY  = "https://sierraespada.lemonsqueezy.com/checkout/buy/2ae9b4f6-9a9f-42d0-aa68-dd584ea5dcf0"
-    const val CHECKOUT_ANNUAL   = "https://sierraespada.lemonsqueezy.com/checkout/buy/de012da9-87f5-4cd1-844c-7fb84479c6fe"
-    const val CHECKOUT_LIFETIME = "https://sierraespada.lemonsqueezy.com/checkout/buy/1f80f416-6f21-4ce9-b37e-bead00b93b76"
+    const val CHECKOUT_MONTHLY  = "https://sierraespada.lemonsqueezy.com/checkout/buy/0e2bc53d-e1b2-41b6-b6d9-a6afb9574680"
+    const val CHECKOUT_ANNUAL   = "https://sierraespada.lemonsqueezy.com/checkout/buy/6211c90c-5929-43c0-8fa2-2cce0a750157"
+    const val CHECKOUT_LIFETIME = "https://sierraespada.lemonsqueezy.com/checkout/buy/bf66c3ee-ae57-47e9-9069-3d1f1a659ae1"
 
     // ─── Claves de seguridad (baked into binary) ──────────────────────────────
     // No es cifrado fuerte, pero eleva el listón frente a edición casual.
@@ -367,25 +367,41 @@ object DesktopEntitlementManager {
      */
     suspend fun deactivateLicense(): String? = withContext(Dispatchers.IO) {
         val data = readData() ?: return@withContext "No active license found."
-        val key  = data.licenseKey  ?: return@withContext "No active license found."
-        val iid  = data.instanceId  ?: return@withContext "Instance ID not found. Please contact support."
-        try {
-            val body     = "license_key=${URLEncoder.encode(key, "UTF-8")}&instance_id=${URLEncoder.encode(iid, "UTF-8")}"
-            val response = httpPost("https://api.lemonsqueezy.com/v1/licenses/deactivate", body)
-            val json     = Json.parseToJsonElement(response).jsonObject
-            val deactivated = json["deactivated"]?.jsonPrimitive?.boolean ?: false
-            if (deactivated) {
-                val clean = data.copy(licenseKey = null, activatedAt = null, instanceId = null, licenseEmail = null, hmac = null)
-                writeData(clean); deleteSystemChecksum()
-                _licenseKey.value = null; _isPro.value = false
-                null  // éxito
-            } else {
-                json["error"]?.jsonPrimitive?.content ?: "Could not deactivate license."
+        val key  = data.licenseKey ?: return@withContext "No active license found."
+
+        // Si no tenemos instanceId, intentamos recuperarlo con /validate
+        val iid = data.instanceId ?: fetchInstanceId(key)
+
+        if (iid != null) {
+            // Desactivación remota normal
+            try {
+                val body        = "license_key=${URLEncoder.encode(key, "UTF-8")}&instance_id=${URLEncoder.encode(iid, "UTF-8")}"
+                val response    = httpPost("https://api.lemonsqueezy.com/v1/licenses/deactivate", body)
+                val json        = Json.parseToJsonElement(response).jsonObject
+                val deactivated = json["deactivated"]?.jsonPrimitive?.boolean ?: false
+                if (!deactivated) {
+                    return@withContext json["error"]?.jsonPrimitive?.content ?: "Could not deactivate license."
+                }
+            } catch (e: Exception) {
+                return@withContext "Could not connect to license server. Check your internet connection."
             }
-        } catch (e: Exception) {
-            "Could not connect to license server. Check your internet connection."
         }
+        // Si no hay instanceId (o la desactivación remota tuvo éxito), limpiamos localmente.
+        // En el caso sin instanceId el slot quedará ocupado en LS hasta que caduque o
+        // el usuario lo elimine desde su panel en lemonsqueezy.com.
+        val clean = data.copy(licenseKey = null, activatedAt = null, instanceId = null, licenseEmail = null, hmac = null)
+        writeData(clean); deleteSystemChecksum()
+        _licenseKey.value = null; _isPro.value = false
+        null  // éxito
     }
+
+    /** Intenta obtener el instanceId actual llamando a /validate. */
+    private fun fetchInstanceId(key: String): String? = runCatching {
+        val body     = "license_key=${URLEncoder.encode(key, "UTF-8")}"
+        val response = httpPost("https://api.lemonsqueezy.com/v1/licenses/validate", body)
+        val json     = Json.parseToJsonElement(response).jsonObject
+        json["instance"]?.jsonObject?.get("id")?.jsonPrimitive?.content
+    }.getOrNull()
 
     private fun httpPost(urlStr: String, body: String): String {
         val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {

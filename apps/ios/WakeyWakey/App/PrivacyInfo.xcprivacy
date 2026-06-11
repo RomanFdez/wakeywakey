@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+    <!-- ── Tracking ─────────────────────────────────────────────────────── -->
+    <!-- WakeyWakey does not track users across apps or websites. -->
+    <key>NSPrivacyTracking</key>
+    <false/>
+
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+
+    <!-- ── Required-reason APIs ─────────────────────────────────────────── -->
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+
+        <!--
+            UserDefaults — used to persist app settings (alert timing, selected
+            calendars, sound preference, install date for trial) exclusively on
+            the user's device. Never sent to any server.
+            Reason: CA92.1 — access info from the same app, same device.
+        -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>CA92.1</string>
+            </array>
+        </dict>
+
+    </array>
+
+    <!-- ── Collected data ───────────────────────────────────────────────── -->
+    <!--
+        WakeyWakey reads calendar events locally to schedule notifications.
+        Calendar data is never uploaded, stored on developer servers, or shared
+        with third parties.
+
+        Purchase and subscription data is handled entirely by RevenueCat
+        (third-party SDK with its own privacy manifest) and Apple StoreKit.
+        WakeyWakey itself does not collect, store, or transmit any personal data.
+    -->
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array/>
+
+</dict>
+</plist>

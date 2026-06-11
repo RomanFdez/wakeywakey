@@ -1,11 +1,15 @@
 import SwiftUI
 import EventKit
+import AVFoundation
 
 struct SettingsView: View {
 
-    @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject var settings:     SettingsStore
     @EnvironmentObject var calendarService: CalendarService
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var entitlements: EntitlementManager
+    @Environment(\.dismiss)      private var dismiss
+    @Environment(\.showPaywall)  private var showPaywall
+    @StateObject private var soundPlayer = SoundPreviewPlayer()
 
     private let minuteOptions = [0, 1, 2, 5, 10]
     private let rowBg = Color.white.opacity(0.07)
@@ -56,9 +60,37 @@ struct SettingsView: View {
             wkToggle("Repetir hasta descartar",  isOn: $settings.repeatSoundUntilDismiss)
                 .disabled(!settings.soundEnabled)
                 .opacity(settings.soundEnabled ? 1 : 0.4)
-            wkToggle("Vibración",                isOn: $settings.vibrationEnabled)
+            // Sound picker
+            if settings.soundEnabled {
+                soundPickerSection
+            }
         } header: {
             sectionHeader("General")
+        }
+    }
+
+    private var soundPickerSection: some View {
+        ForEach(AlertSound.all) { sound in
+            Button {
+                settings.alertSoundName = sound.id
+                soundPlayer.play(sound)
+            } label: {
+                HStack {
+                    Image(systemName: settings.alertSoundName == sound.id
+                          ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(settings.alertSoundName == sound.id
+                                         ? Color.wkYellow : .white.opacity(0.3))
+                    Text(sound.displayName)
+                        .foregroundStyle(.white)
+                    Spacer()
+                    if settings.alertSoundName == sound.id {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.wkYellow.opacity(0.7))
+                    }
+                }
+            }
+            .listRowBackground(rowBg)
         }
     }
 
@@ -189,6 +221,45 @@ struct SettingsView: View {
 
     private var otrosSection: some View {
         Section {
+            // Pro status / upgrade
+            if entitlements.trialDaysLeft > 0 {
+                Button {
+                    dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { showPaywall() }
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Prueba gratuita")
+                                .foregroundStyle(.white)
+                            Text("\(entitlements.trialDaysLeft) días restantes · Ver planes")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.wkYellow.opacity(0.8))
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.3))
+                    }
+                }
+                .listRowBackground(rowBg)
+            } else if !entitlements.isPro {
+                Button {
+                    dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { showPaywall() }
+                } label: {
+                    HStack {
+                        Text("⭐ Actualizar a Pro")
+                            .foregroundStyle(Color.wkYellow)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.wkYellow.opacity(0.5))
+                    }
+                }
+                .listRowBackground(Color.wkYellow.opacity(0.08))
+            }
+
             Button("Repetir tutorial") {
                 settings.onboardingCompleted = false
                 dismiss()

@@ -22,7 +22,7 @@ kotlin {
     listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { target ->
         target.binaries.framework {
             baseName = "Shared"
-            isStatic = true
+            isStatic = false
             xcf.add(this)
         }
     }
