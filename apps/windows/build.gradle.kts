@@ -153,10 +153,13 @@ compose.desktop {
             }
         }
 
-        jvmArgs(
-            "-Xdock:name=WakeyWakey",
-            "-Dapple.awt.UIElement=true",   // suppress Dock icon before AWT init
-        )
+        // -Xdock:* y -Dapple.awt.* son exclusivas de macOS — en Windows la JVM aborta con "Unrecognized option"
+        if (org.gradle.internal.os.OperatingSystem.current().isMacOsX) {
+            jvmArgs(
+                "-Xdock:name=WakeyWakey",
+                "-Dapple.awt.UIElement=true",
+            )
+        }
     }
 }
 
