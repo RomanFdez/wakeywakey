@@ -135,24 +135,28 @@ private var _instanceSocket: ServerSocket? = null
 private val _pendingActivationKey = MutableStateFlow<String?>(null)
 
 private fun setupUriHandler() {
-    runCatching {
-        if (!Desktop.isDesktopSupported()) return
-        val desktop = Desktop.getDesktop()
-        if (!desktop.isSupported(Desktop.Action.APP_OPEN_URI)) return
-        desktop.setOpenURIHandler { event ->
-            val uri = event.uri
-            if (uri.scheme == "wakeywakey" && uri.host == "activate") {
-                val key = uri.query
-                    ?.split("&")
-                    ?.firstOrNull { it.startsWith("key=") }
-                    ?.removePrefix("key=")
-                    ?.trim()
-                if (!key.isNullOrBlank()) {
-                    _pendingActivationKey.value = key
+    // Desktop.getDesktop() blocks on headless/server Windows — run in daemon thread
+    Thread {
+        runCatching {
+            if (!Desktop.isDesktopSupported()) { log("URI handler: Desktop not supported"); return@runCatching }
+            val desktop = Desktop.getDesktop()
+            if (!desktop.isSupported(Desktop.Action.APP_OPEN_URI)) { log("URI handler: APP_OPEN_URI not supported"); return@runCatching }
+            desktop.setOpenURIHandler { event ->
+                val uri = event.uri
+                if (uri.scheme == "wakeywakey" && uri.host == "activate") {
+                    val key = uri.query
+                        ?.split("&")
+                        ?.firstOrNull { it.startsWith("key=") }
+                        ?.removePrefix("key=")
+                        ?.trim()
+                    if (!key.isNullOrBlank()) {
+                        _pendingActivationKey.value = key
+                    }
                 }
             }
-        }
-    }.onFailure { log("setupUriHandler failed (non-fatal): $it") }
+            log("URI handler registered")
+        }.onFailure { log("URI handler setup failed (non-fatal): $it") }
+    }.also { it.isDaemon = true; it.name = "uri-handler-setup"; it.start() }
 }
 
 private fun acquireSingleInstanceLock(): Boolean {
