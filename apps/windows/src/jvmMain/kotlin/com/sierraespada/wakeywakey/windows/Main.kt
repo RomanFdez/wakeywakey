@@ -177,12 +177,13 @@ fun main() {
     // Registra el handler de wakeywakey:// ANTES de inicializar AWT/Compose.
     setupUriHandler()
 
-    // Oculta el icono del Dock en macOS — la app vive solo en la barra de menú.
-    // Debe establecerse ANTES de cualquier inicialización de AWT.
-    System.setProperty("apple.awt.UIElement", "true")
-    System.setProperty("skiko.renderApi", "METAL")
-    System.setProperty("apple.awt.application.appearance", "system")
-    System.setProperty("apple.awt.application.name", "WakeyWakey")
+    val isMac = System.getProperty("os.name").orEmpty().lowercase().contains("mac")
+    if (isMac) {
+        System.setProperty("apple.awt.UIElement", "true")
+        System.setProperty("skiko.renderApi", "METAL")
+        System.setProperty("apple.awt.application.appearance", "system")
+        System.setProperty("apple.awt.application.name", "WakeyWakey")
+    }
 
     application {
 
