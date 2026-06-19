@@ -18,24 +18,31 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v3
 
-      - name: Launch app, wait for startup log
+      - name: Build app
+        shell: bash
+        run: |
+          ./gradlew :apps:windows:jvmJar --no-daemon --no-configuration-cache
+          echo "Build done"
+
+      - name: Launch app and capture startup log
         shell: bash
         run: |
           echo "=== Launching WakeyWakey ==="
 
-          # Lanza la app en background y guarda stdout/stderr
+          # Lanza la app en background
           ./gradlew :apps:windows:run --no-daemon --no-configuration-cache \
             > gradle-out.txt 2> gradle-err.txt &
           GRADLE_PID=$!
           echo "Gradle PID: $GRADLE_PID"
 
-          # En Git bash en Windows, $APPDATA usa separador /
-          LOG_PATH="$APPDATA/WakeyWakey/startup.log"
+          # Convierte la ruta APPDATA de Windows a Unix para bash
+          APPDATA_UNIX=$(cygpath "$APPDATA" 2>/dev/null || echo "$APPDATA")
+          LOG_PATH="$APPDATA_UNIX/WakeyWakey/startup.log"
           echo "Watching: $LOG_PATH"
 
-          # Espera hasta 180s a que aparezca startup.log
+          # Espera hasta 120s a que aparezca startup.log (build ya está hecho)
           waited=0
-          while [ $waited -lt 180 ] && [ ! -f "$LOG_PATH" ]; do
+          while [ $waited -lt 120 ] && [ ! -f "$LOG_PATH" ]; do
             sleep 5
             waited=$((waited + 5))
             echo "Waiting for startup.log... ($waited s)"
