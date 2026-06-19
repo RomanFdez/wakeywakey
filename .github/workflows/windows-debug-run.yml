@@ -24,11 +24,12 @@ jobs:
           Write-Host "=== Launching WakeyWakey (build + run) ==="
 
           # Arranca gradle run en background — compila y lanza la app
-          $gradlew = Join-Path $env:GITHUB_WORKSPACE "gradlew.bat"
-          Write-Host "gradlew path: $gradlew (exists: $(Test-Path $gradlew))"
+          # Solo existe gradlew (Unix), lo ejecutamos vía bash de Git for Windows
+          $bash = "C:\Program Files\Git\bin\bash.exe"
+          Write-Host "bash path: $bash (exists: $(Test-Path $bash))"
 
-          $proc = Start-Process -FilePath $gradlew `
-            -ArgumentList ":apps:windows:run", "--no-daemon", "--no-configuration-cache" `
+          $proc = Start-Process -FilePath $bash `
+            -ArgumentList "-c", "./gradlew :apps:windows:run --no-daemon --no-configuration-cache" `
             -WorkingDirectory $env:GITHUB_WORKSPACE `
             -PassThru `
             -RedirectStandardOutput (Join-Path $env:GITHUB_WORKSPACE "gradle-out.txt") `
