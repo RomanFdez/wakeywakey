@@ -177,12 +177,16 @@ fun main() {
     // Registra el handler de wakeywakey:// ANTES de inicializar AWT/Compose.
     setupUriHandler()
 
-    val isMac = System.getProperty("os.name").orEmpty().lowercase().contains("mac")
+    val osName = System.getProperty("os.name").orEmpty().lowercase()
+    val isMac  = osName.contains("mac")
     if (isMac) {
         System.setProperty("apple.awt.UIElement", "true")
         System.setProperty("skiko.renderApi", "METAL")
         System.setProperty("apple.awt.application.appearance", "system")
         System.setProperty("apple.awt.application.name", "WakeyWakey")
+    } else {
+        // SOFTWARE es el modo más compatible en Windows — evita crashes por DirectX/OpenGL
+        System.setProperty("skiko.renderApi", "SOFTWARE")
     }
 
     application {
