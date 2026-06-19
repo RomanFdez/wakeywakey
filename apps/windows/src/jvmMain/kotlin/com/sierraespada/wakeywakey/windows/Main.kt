@@ -167,14 +167,40 @@ private fun acquireSingleInstanceLock(): Boolean {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Startup logger ────────────────────────────────────────────────────────────
+// Escribe en %APPDATA%\WakeyWakey\startup.log (Windows) o ~/Library/Logs/WakeyWakey/startup.log (macOS)
+// para diagnóstico cuando la app no arranca y no hay consola disponible.
+private val startupLog: java.io.PrintWriter? by lazy {
+    runCatching {
+        val dir = java.io.File(
+            System.getenv("APPDATA") ?: System.getProperty("user.home"),
+            "WakeyWakey"
+        ).also { it.mkdirs() }
+        java.io.PrintWriter(java.io.FileWriter(java.io.File(dir, "startup.log"), false), true)
+    }.getOrNull()
+}
+
+private fun log(msg: String) {
+    val line = "[${java.time.LocalDateTime.now()}] $msg"
+    System.err.println(line)
+    startupLog?.println(line)
+}
+
 fun main() {
+    log("=== WakeyWakey ${AppBuildConfig.VERSION} starting ===")
+    log("OS: ${System.getProperty("os.name")} ${System.getProperty("os.version")} ${System.getProperty("os.arch")}")
+    log("Java: ${System.getProperty("java.version")} (${System.getProperty("java.vendor")})")
+
     // Instancia única: si ya hay una corriendo, salir silenciosamente.
+    log("Acquiring single-instance lock on port $SINGLE_INSTANCE_PORT...")
     if (!acquireSingleInstanceLock()) {
-        System.err.println("WakeyWakey: otra instancia ya está en ejecución — saliendo.")
+        log("Another instance already running — exiting.")
         return
     }
+    log("Single-instance lock acquired.")
 
     // Registra el handler de wakeywakey:// ANTES de inicializar AWT/Compose.
+    log("Setting up URI handler...")
     setupUriHandler()
 
     val osName = System.getProperty("os.name").orEmpty().lowercase()
@@ -188,14 +214,21 @@ fun main() {
         // SOFTWARE es el modo más compatible en Windows — evita crashes por DirectX/OpenGL
         System.setProperty("skiko.renderApi", "SOFTWARE")
     }
+    log("Render API: ${System.getProperty("skiko.renderApi") ?: "auto"}")
+    log("SystemTray supported: ${java.awt.SystemTray.isSupported()}")
+    log("Launching Compose application...")
 
     application {
+        log("Compose application block entered.")
 
         val appState = remember { AppState() }
 
         LaunchedEffect(Unit) {
-            WakeyWakeyApp.init()
-            appState.start()
+            log("Initializing WakeyWakeyApp...")
+            runCatching { WakeyWakeyApp.init() }.onFailure { log("WakeyWakeyApp.init() FAILED: $it") }
+            log("Starting AppState...")
+            runCatching { appState.start() }.onFailure { log("appState.start() FAILED: $it") }
+            log("Startup complete.")
         }
 
         // Activa la licencia automáticamente cuando llega un wakeywakey://activate?key=... URL

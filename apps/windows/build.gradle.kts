@@ -43,12 +43,17 @@ val generateBuildConfig by tasks.registering {
             object AppBuildConfig {
                 /** true en builds de release (-Prelease). Elimina todo el código dev en producción. */
                 const val IS_RELEASE: Boolean = $isRelease
+                const val VERSION:    String  = "$appVersion"
 
                 // Credenciales OAuth compiladas en el binario.
                 // Vacías en dev — la app usa ~/.wakeywakey/config.properties como fallback.
                 const val GOOGLE_CLIENT_ID:     String = "$googleClientId"
                 const val GOOGLE_CLIENT_SECRET: String = "$googleClientSecret"
                 const val MICROSOFT_CLIENT_ID:  String = "$microsoftClientId"
+            }
+
+            object AppVersion {
+                val name: String get() = AppBuildConfig.VERSION
             }
             """.trimIndent()
         )

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.rememberWindowState
+import com.sierraespada.wakeywakey.windows.AppVersion
 import com.sierraespada.wakeywakey.windows.PlatformMode
 import com.sierraespada.wakeywakey.windows.settings.AutostartManager
 import kotlinx.coroutines.Dispatchers
@@ -179,6 +180,8 @@ private fun WelcomeStep(onNext: () -> Unit) {
         Text("⏰", fontSize = 72.sp)
         Spacer(Modifier.height(20.dp))
         Text("WakeyWakey", color = Yellow, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
+        Spacer(Modifier.height(4.dp))
+        Text("v${AppVersion.name}", color = White.copy(alpha = 0.35f), fontSize = 11.sp)
         Spacer(Modifier.height(6.dp))
         Text("Never miss a meeting again", color = White.copy(alpha = 0.65f), fontSize = 16.sp)
         Spacer(Modifier.height(36.dp))
