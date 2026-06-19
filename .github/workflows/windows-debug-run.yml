@@ -18,19 +18,12 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v3
 
-      - name: Build app
-        shell: bash
-        run: |
-          ./gradlew :apps:windows:jar \
-            --no-daemon --no-configuration-cache
-          echo "Build done"
-
-      - name: Launch app, wait 30s, capture log
+      - name: Launch app, wait 60s, capture log
         shell: pwsh
         run: |
-          Write-Host "=== Launching WakeyWakey ==="
+          Write-Host "=== Launching WakeyWakey (build + run) ==="
 
-          # Arranca la app en background
+          # Arranca gradle run en background — compila y lanza la app
           $proc = Start-Process -FilePath ".\gradlew.bat" `
             -ArgumentList ":apps:windows:run", "--no-daemon", "--no-configuration-cache" `
             -PassThru `
@@ -39,12 +32,12 @@ jobs:
 
           Write-Host "PID: $($proc.Id)"
 
-          # Espera hasta 60s a que aparezca startup.log
+          # Espera hasta 180s (incluye tiempo de compilación) a que aparezca startup.log
           $logPath = "$env:APPDATA\WakeyWakey\startup.log"
           $waited  = 0
-          while ($waited -lt 60 -and !(Test-Path $logPath)) {
-            Start-Sleep 3
-            $waited += 3
+          while ($waited -lt 180 -and !(Test-Path $logPath)) {
+            Start-Sleep 5
+            $waited += 5
             Write-Host "Waiting for startup.log... ($waited s)"
           }
 
