@@ -135,22 +135,24 @@ private var _instanceSocket: ServerSocket? = null
 private val _pendingActivationKey = MutableStateFlow<String?>(null)
 
 private fun setupUriHandler() {
-    if (!Desktop.isDesktopSupported()) return
-    val desktop = Desktop.getDesktop()
-    if (!desktop.isSupported(Desktop.Action.APP_OPEN_URI)) return
-    desktop.setOpenURIHandler { event ->
-        val uri = event.uri
-        if (uri.scheme == "wakeywakey" && uri.host == "activate") {
-            val key = uri.query
-                ?.split("&")
-                ?.firstOrNull { it.startsWith("key=") }
-                ?.removePrefix("key=")
-                ?.trim()
-            if (!key.isNullOrBlank()) {
-                _pendingActivationKey.value = key
+    runCatching {
+        if (!Desktop.isDesktopSupported()) return
+        val desktop = Desktop.getDesktop()
+        if (!desktop.isSupported(Desktop.Action.APP_OPEN_URI)) return
+        desktop.setOpenURIHandler { event ->
+            val uri = event.uri
+            if (uri.scheme == "wakeywakey" && uri.host == "activate") {
+                val key = uri.query
+                    ?.split("&")
+                    ?.firstOrNull { it.startsWith("key=") }
+                    ?.removePrefix("key=")
+                    ?.trim()
+                if (!key.isNullOrBlank()) {
+                    _pendingActivationKey.value = key
+                }
             }
         }
-    }
+    }.onFailure { log("setupUriHandler failed (non-fatal): $it") }
 }
 
 private fun acquireSingleInstanceLock(): Boolean {
