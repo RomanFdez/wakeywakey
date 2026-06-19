@@ -1,0 +1,82 @@
+name: Windows Debug Run
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug-run:
+    name: Run app on Windows and capture startup log
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v3
+
+      - name: Build app
+        shell: bash
+        run: |
+          ./gradlew :apps:windows:jar \
+            --no-daemon --no-configuration-cache
+          echo "Build done"
+
+      - name: Launch app, wait 30s, capture log
+        shell: pwsh
+        run: |
+          Write-Host "=== Launching WakeyWakey ==="
+
+          # Arranca la app en background
+          $proc = Start-Process -FilePath ".\gradlew.bat" `
+            -ArgumentList ":apps:windows:run", "--no-daemon", "--no-configuration-cache" `
+            -PassThru `
+            -RedirectStandardOutput "gradle-out.txt" `
+            -RedirectStandardError  "gradle-err.txt"
+
+          Write-Host "PID: $($proc.Id)"
+
+          # Espera hasta 60s a que aparezca startup.log
+          $logPath = "$env:APPDATA\WakeyWakey\startup.log"
+          $waited  = 0
+          while ($waited -lt 60 -and !(Test-Path $logPath)) {
+            Start-Sleep 3
+            $waited += 3
+            Write-Host "Waiting for startup.log... ($waited s)"
+          }
+
+          # Muestra el log en consola
+          if (Test-Path $logPath) {
+            Write-Host "`n=== startup.log ==="
+            Get-Content $logPath
+          } else {
+            Write-Host "`n=== startup.log NOT found after ${waited}s ==="
+          }
+
+          # Espera un poco más por si hay trazas tardías y mata el proceso
+          Start-Sleep 10
+          $proc | Stop-Process -Force -ErrorAction SilentlyContinue
+          Get-Process java -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+          Write-Host "`n=== gradle stdout ==="
+          Get-Content gradle-out.txt -ErrorAction SilentlyContinue
+          Write-Host "`n=== gradle stderr ==="
+          Get-Content gradle-err.txt -ErrorAction SilentlyContinue
+
+          # Copia el log al workspace para el artefacto
+          New-Item -ItemType Directory -Force -Path "debug-logs" | Out-Null
+          if (Test-Path $logPath) {
+            Copy-Item $logPath "debug-logs\startup.log"
+          }
+          Copy-Item gradle-out.txt "debug-logs\gradle-out.txt" -ErrorAction SilentlyContinue
+          Copy-Item gradle-err.txt "debug-logs\gradle-err.txt" -ErrorAction SilentlyContinue
+
+      - name: Upload debug logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-debug-logs
+          path: debug-logs/
