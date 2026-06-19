@@ -18,59 +18,50 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v3
 
-      - name: Launch app, wait 60s, capture log
-        shell: pwsh
+      - name: Launch app, wait for startup log
+        shell: bash
         run: |
-          Write-Host "=== Launching WakeyWakey (build + run) ==="
+          echo "=== Launching WakeyWakey ==="
 
-          # Arranca gradle run en background — compila y lanza la app
-          # Solo existe gradlew (Unix), lo ejecutamos vía bash de Git for Windows
-          $bash = "C:\Program Files\Git\bin\bash.exe"
-          Write-Host "bash path: $bash (exists: $(Test-Path $bash))"
+          # Lanza la app en background y guarda stdout/stderr
+          ./gradlew :apps:windows:run --no-daemon --no-configuration-cache \
+            > gradle-out.txt 2> gradle-err.txt &
+          GRADLE_PID=$!
+          echo "Gradle PID: $GRADLE_PID"
 
-          $proc = Start-Process -FilePath $bash `
-            -ArgumentList "-c", "./gradlew :apps:windows:run --no-daemon --no-configuration-cache" `
-            -WorkingDirectory $env:GITHUB_WORKSPACE `
-            -PassThru `
-            -RedirectStandardOutput (Join-Path $env:GITHUB_WORKSPACE "gradle-out.txt") `
-            -RedirectStandardError  (Join-Path $env:GITHUB_WORKSPACE "gradle-err.txt")
+          # En Git bash en Windows, $APPDATA usa separador /
+          LOG_PATH="$APPDATA/WakeyWakey/startup.log"
+          echo "Watching: $LOG_PATH"
 
-          Write-Host "PID: $($proc.Id)"
+          # Espera hasta 180s a que aparezca startup.log
+          waited=0
+          while [ $waited -lt 180 ] && [ ! -f "$LOG_PATH" ]; do
+            sleep 5
+            waited=$((waited + 5))
+            echo "Waiting for startup.log... ($waited s)"
+          done
 
-          # Espera hasta 180s (incluye tiempo de compilación) a que aparezca startup.log
-          $logPath = "$env:APPDATA\WakeyWakey\startup.log"
-          $waited  = 0
-          while ($waited -lt 180 -and !(Test-Path $logPath)) {
-            Start-Sleep 5
-            $waited += 5
-            Write-Host "Waiting for startup.log... ($waited s)"
-          }
+          echo ""
+          echo "=== startup.log ==="
+          cat "$LOG_PATH" 2>/dev/null || echo "(not found after ${waited}s)"
 
-          # Muestra el log en consola
-          if (Test-Path $logPath) {
-            Write-Host "`n=== startup.log ==="
-            Get-Content $logPath
-          } else {
-            Write-Host "`n=== startup.log NOT found after ${waited}s ==="
-          }
+          echo ""
+          echo "=== gradle stdout ==="
+          cat gradle-out.txt || true
 
-          # Espera un poco más por si hay trazas tardías y mata el proceso
-          Start-Sleep 10
-          $proc | Stop-Process -Force -ErrorAction SilentlyContinue
-          Get-Process java -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          echo ""
+          echo "=== gradle stderr ==="
+          cat gradle-err.txt || true
 
-          Write-Host "`n=== gradle stdout ==="
-          Get-Content gradle-out.txt -ErrorAction SilentlyContinue
-          Write-Host "`n=== gradle stderr ==="
-          Get-Content gradle-err.txt -ErrorAction SilentlyContinue
+          # Mata los procesos
+          kill $GRADLE_PID 2>/dev/null || true
+          taskkill //F //IM java.exe 2>/dev/null || true
 
-          # Copia el log al workspace para el artefacto
-          New-Item -ItemType Directory -Force -Path "debug-logs" | Out-Null
-          if (Test-Path $logPath) {
-            Copy-Item $logPath "debug-logs\startup.log"
-          }
-          Copy-Item gradle-out.txt "debug-logs\gradle-out.txt" -ErrorAction SilentlyContinue
-          Copy-Item gradle-err.txt "debug-logs\gradle-err.txt" -ErrorAction SilentlyContinue
+          # Copia artefactos
+          mkdir -p debug-logs
+          cp "$LOG_PATH" debug-logs/startup.log 2>/dev/null || true
+          cp gradle-out.txt debug-logs/ 2>/dev/null || true
+          cp gradle-err.txt debug-logs/ 2>/dev/null || true
 
       - name: Upload debug logs
         uses: actions/upload-artifact@v4
