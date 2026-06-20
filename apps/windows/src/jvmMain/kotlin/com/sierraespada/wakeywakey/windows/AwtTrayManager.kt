@@ -36,6 +36,8 @@ object AwtTrayManager {
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
+    private val isMac = System.getProperty("os.name").orEmpty().lowercase().contains("mac")
+
     fun install(
         onTrayClicked: (clickX: Int) -> Unit,
         onQuit:        () -> Unit,
@@ -46,7 +48,10 @@ object AwtTrayManager {
         this.onQuit        = onQuit
 
         val ti = TrayIcon(buildImage(null), "WakeyWakey")
-        ti.isImageAutoSize = false   // ← clave: sin esto macOS escala a 22×22
+        // En macOS @2x: desactivamos el autoSize para que el bitmap ancho (icono+texto)
+        // se muestre en su tamaño natural. En Windows dejamos que el sistema escale el
+        // icono cuadrado al tamaño correcto según el DPI del usuario.
+        ti.isImageAutoSize = !isMac
 
         // Usamos MouseListener en lugar de ActionListener para:
         //  • Detectar UN SOLO clic (ActionListener requiere doble clic en algunas plataformas)
@@ -82,8 +87,17 @@ object AwtTrayManager {
 
     fun updateContent(settings: UserSettings, homeState: HomeUiState) {
         val label = runCatching { computeLabel(settings, homeState) }.getOrNull()
-        // Siempre actualizar en el EDT para que AWT procese el cambio correctamente
-        SwingUtilities.invokeLater { trayIcon?.image = buildImage(label, settings.trayMonochromeIcon, settings.trayAccentColor) }
+        SwingUtilities.invokeLater {
+            if (isMac) {
+                // macOS: icono ancho con texto al lado (menu bar nativa)
+                trayIcon?.image = buildImage(label, settings.trayMonochromeIcon, settings.trayAccentColor)
+            } else {
+                // Windows: icono cuadrado + texto en el tooltip (pasa el ratón por encima)
+                trayIcon?.image = buildImage(null, settings.trayMonochromeIcon, settings.trayAccentColor)
+                val tooltip = if (label != null) "WakeyWakey · $label" else "WakeyWakey"
+                trayIcon?.toolTip = tooltip
+            }
+        }
     }
 
     fun updatePaused(paused: Boolean) {
@@ -165,9 +179,12 @@ object AwtTrayManager {
      * [monochrome] = false → círculo amarillo con WW navy (estilo marca)
      */
     private fun buildImage(label: String?, monochrome: Boolean = false, accentColor: String = "system"): java.awt.Image {
-        val scale    = 2
-        val iconSize = 22 * scale          // 44px
-        val fontSize = 13 * scale          // 26px → 13pt en pantalla
+        // macOS Retina: @2x para que el icono no se vea borroso en HiDPI
+        // Windows: el sistema aplica su propio DPI scaling via isImageAutoSize=true, renderizamos a 1x
+        val scale    = if (isMac) 2 else 1
+        val iconSize = if (isMac) 22 * scale else
+            SystemTray.getSystemTray().trayIconSize.width.coerceAtLeast(16)
+        val fontSize = (iconSize * 0.59f).toInt()   // ~13pt escalado
 
         val font     = AwtFont(AwtFont.SANS_SERIF, AwtFont.BOLD, fontSize)
 
