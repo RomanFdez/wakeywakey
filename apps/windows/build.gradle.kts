@@ -81,6 +81,8 @@ kotlin {
                 implementation(libs.ktor.client.cio)
                 implementation(libs.ktor.client.content.negotiation)
                 implementation(libs.ktor.serialization.json)
+                // MP3 playback via javax.sound.sampled (no external process, no STA issues)
+                implementation("com.googlecode.soundlibs:mp3spi:1.9.5.4")
                 // JNA removed — using Swift CalendarHelper binary instead
             }
         }

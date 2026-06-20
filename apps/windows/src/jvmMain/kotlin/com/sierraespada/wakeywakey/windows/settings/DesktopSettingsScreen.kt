@@ -51,7 +51,7 @@ private val Subtitle  = Color(0xFF8892AA)
 private enum class SettingsTab(val label: String, val icon: ImageVector) {
     CALENDAR("Calendar", Icons.Filled.CalendarMonth),
     ALERTS  ("Alerts",   Icons.Filled.Alarm),
-    MENU_BAR("Menu Bar", Icons.Filled.Dvr),
+    TRAY    ("Tray",     Icons.Filled.Dvr),
     APP     ("App",      Icons.Filled.Settings),
 }
 
@@ -110,7 +110,7 @@ fun DesktopSettingsScreen(
             when (tab) {
                 SettingsTab.CALENDAR -> CalendarTab(s, onConnectCalendar, allCalendars, platformMode, onUpgrade)
                 SettingsTab.ALERTS   -> AlertsTab(s, onUpgrade)
-                SettingsTab.MENU_BAR -> MenuBarTab(s, appIcon)
+                SettingsTab.TRAY     -> TrayTab(s)
                 SettingsTab.APP      -> AppTab(s)
             }
             Spacer(Modifier.height(4.dp))
@@ -546,72 +546,21 @@ private fun SoundSelectorRow(s: UserSettings) {
     }
 }
 
-// ─── Tab: Menu Bar ────────────────────────────────────────────────────────────
+// ─── Tab: Tray ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun MenuBarTab(s: UserSettings, appIcon: Painter) {
+private fun TrayTab(s: UserSettings) {
 
-    // Display options
-    Card {
-        SectionLabel("Display", Icons.Filled.Dvr)
-        ItemDivider()
-        CompactToggle("Show next meeting name", s.trayShowMeetingName) {
-            DesktopSettingsRepository.save(s.copy(trayShowMeetingName = it))
-        }
-        ItemDivider()
-        CompactToggle("Show time remaining", s.trayShowTimeRemaining) {
-            DesktopSettingsRepository.save(s.copy(trayShowTimeRemaining = it))
-        }
-        ItemDivider()
-        CompactToggle("Minutes only  (5m vs 5m 30s)", s.countdownMinutesOnly) {
-            DesktopSettingsRepository.save(s.copy(countdownMinutesOnly = it))
-        }
-        ItemDivider()
-        CompactToggle("Include tomorrow's meetings", s.trayIncludeTomorrow) {
-            DesktopSettingsRepository.save(s.copy(trayIncludeTomorrow = it))
-        }
-        ItemDivider()
-        // Title length inline
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Title length", color = White, fontSize = 13.sp, modifier = Modifier.width(90.dp))
-            Slider(
-                value         = s.trayTitleMaxLength.toFloat(),
-                onValueChange = { DesktopSettingsRepository.save(s.copy(trayTitleMaxLength = it.toInt())) },
-                valueRange    = 10f..50f,
-                steps         = 39,
-                colors        = SliderDefaults.colors(
-                    thumbColor         = Yellow,
-                    activeTrackColor   = Yellow,
-                    inactiveTrackColor = Surface2,
-                ),
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                "${s.trayTitleMaxLength}",
-                color    = Subtitle,
-                fontSize = 11.sp,
-                modifier = Modifier.width(26.dp).padding(start = 4.dp),
-            )
-        }
-        ItemDivider()
-        CompactToggle("Truncate in the middle", "e.g. \"Standup…sprint\" instead of \"Standup…\"", s.trayTitleTruncateMiddle) {
-            DesktopSettingsRepository.save(s.copy(trayTitleTruncateMiddle = it))
-        }
-    }
-
-    // Appearance + preview
+    // Appearance — sin preview (en Windows el icono es cuadrado pequeño, no hay barra de menú)
     Card {
         SectionLabel("Appearance", Icons.Filled.Palette)
         ItemDivider()
         CompactToggle(
             label    = "Monochrome icon",
             subtitle = if (s.trayMonochromeIcon)
-                           "Color applies to icon + text"
+                           "Color applies to icon"
                        else
-                           "Icon is always yellow — color applies to text only",
+                           "Icon is always yellow",
             checked  = s.trayMonochromeIcon,
         ) {
             DesktopSettingsRepository.save(s.copy(trayMonochromeIcon = it))
@@ -622,75 +571,12 @@ private fun MenuBarTab(s: UserSettings, appIcon: Painter) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                if (s.trayMonochromeIcon) "Color" else "Text",
-                color    = Subtitle,
-                fontSize = 12.sp,
-                modifier = Modifier.width(40.dp),
-            )
+            Text("Color", color = Subtitle, fontSize = 12.sp, modifier = Modifier.width(40.dp))
             TrayColorPicker(current = s.trayAccentColor) {
                 DesktopSettingsRepository.save(s.copy(trayAccentColor = it))
             }
         }
-        ItemDivider()
-        // Preview
-        val accentColor  = accentPreviewColor(s.trayAccentColor)
-        // When NOT monochrome: icon is always yellow brand circle; text uses accentColor
-        // When monochrome: both icon circle and text use accentColor
-        val iconTintColor = if (s.trayMonochromeIcon) accentColor else Color(0xFFFFE03A)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFF0A0A1A))
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-        ) {
-            Row(
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                // Icon: tinted to accentColor when monochrome, normal when not
-                Box(
-                    modifier         = Modifier.size(22.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    androidx.compose.foundation.Image(
-                        painter            = appIcon,
-                        contentDescription = null,
-                        modifier           = Modifier.size(22.dp),
-                        colorFilter        = if (s.trayMonochromeIcon)
-                            androidx.compose.ui.graphics.ColorFilter.tint(iconTintColor)
-                        else null,
-                    )
-                }
-                if (s.trayShowMeetingName) {
-                    Text("Design Review", color = accentColor, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                }
-                if (s.trayShowTimeRemaining) {
-                    if (s.trayShowMeetingName) Text("·", color = accentColor.copy(alpha = 0.5f), fontSize = 13.sp)
-                    Text(
-                        if (s.countdownMinutesOnly) "12m" else "12m 30s",
-                        color      = accentColor,
-                        fontSize   = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                if (!s.trayShowMeetingName && !s.trayShowTimeRemaining) {
-                    Text("Icon only", color = Subtitle, fontSize = 12.sp)
-                }
-            }
-        }
     }
-}
-
-private fun accentPreviewColor(id: String) = when (id) {
-    "red"    -> Color(0xFFFF3B30)
-    "yellow" -> Color(0xFFFFCC00)
-    "blue"   -> Color(0xFF007AFF)
-    "purple" -> Color(0xFFAF52DE)
-    "green"  -> Color(0xFF34C759)
-    "orange" -> Color(0xFFFF9500)
-    else     -> Color.White.copy(alpha = 0.85f)
 }
 
 // ─── Tab: App ─────────────────────────────────────────────────────────────────

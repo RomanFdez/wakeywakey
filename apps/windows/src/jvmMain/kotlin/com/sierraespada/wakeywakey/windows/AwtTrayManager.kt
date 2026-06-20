@@ -108,14 +108,15 @@ object AwtTrayManager {
     // ── Texto del tray ────────────────────────────────────────────────────────
 
     private fun computeLabel(settings: UserSettings, homeState: HomeUiState): String? {
-        if (!settings.trayShowMeetingName && !settings.trayShowTimeRemaining) return null
-
-        val now = System.currentTimeMillis()
-
-        // Siguiente reunión que aún no ha empezado (cualquier día).
+        val now  = System.currentTimeMillis()
         val next = homeState.events.firstOrNull { ev -> ev.startTime > now } ?: return null
 
-        val title: String? = if (settings.trayShowMeetingName) {
+        // macOS: respeta los toggles del usuario (sección Display de Menu Bar)
+        // Windows: siempre muestra nombre + tiempo en el tooltip (no hay sección Display)
+        val showName = if (isMac) settings.trayShowMeetingName else true
+        val showTime = if (isMac) settings.trayShowTimeRemaining else true
+
+        val title: String? = if (showName) {
             val raw = next.title
             val max = settings.trayTitleMaxLength
             if (raw.length <= max) raw
@@ -127,21 +128,19 @@ object AwtTrayManager {
             }
         } else null
 
-        val time: String? = if (settings.trayShowTimeRemaining) {
+        val time: String? = if (showTime) {
             val daysAway = calendarDaysUntil(next.startTime)
             when {
                 daysAway == 0 -> {
-                    // Hoy: muestra cuenta regresiva en minutos/segundos
                     val totalSecs = ((next.startTime - now) / 1000L).toInt().coerceAtLeast(0)
                     val minsFloor = totalSecs / 60
                     val secs      = totalSecs % 60
-                    // Ceiling: si quedan 1m30s el reloj muestra 11:42 y la reunión es a 11:44 → "2m"
                     val minsCeil  = if (secs > 0) minsFloor + 1 else minsFloor
                     when {
-                        totalSecs <= 0  -> "now"
-                        minsFloor < 60  -> if (settings.countdownMinutesOnly) "${minsCeil}m"
-                                           else "${minsFloor}m %02ds".format(secs)
-                        else            -> "${minsFloor / 60}h ${minsFloor % 60}m"
+                        totalSecs <= 0 -> "now"
+                        minsFloor < 60 -> if (settings.countdownMinutesOnly) "${minsCeil}m"
+                                          else "${minsFloor}m %02ds".format(secs)
+                        else           -> "${minsFloor / 60}h ${minsFloor % 60}m"
                     }
                 }
                 daysAway == 1 -> if (isSpanish()) "Mañana" else "Tomorrow"

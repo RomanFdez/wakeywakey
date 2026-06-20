@@ -2,15 +2,15 @@ package com.sierraespada.wakeywakey.windows
 
 import kotlinx.coroutines.*
 import java.io.File
+import javax.sound.sampled.AudioSystem
+import javax.sound.sampled.FloatControl
+import javax.sound.sampled.SourceDataLine
 
 /**
- * Reproductor de MP3 cross-platform.
+ * Reproductor de MP3 cross-platform usando javax.sound.sampled + mp3spi.
  *
- *  - macOS   → `afplay -v <vol> <path>`
- *  - Windows → PowerShell MediaPlayer (WPF assemblies, incluidos en Win 10/11)
- *  - Linux   → `mpg123 -q <path>` (fallback; no incluido en distribución)
- *
- * Si el player no está disponible, falla silenciosamente.
+ * mp3spi registra un AudioFileReader para MP3 que AudioSystem detecta automáticamente.
+ * Sin procesos externos, sin dependencias de STA/WPF — funciona en cualquier hilo.
  */
 object SoundPlayer {
 
@@ -34,32 +34,20 @@ object SoundPlayer {
         SoundDef("whistle",           "Whistle",           "🌬️"),
     )
 
-    private val isMac     = System.getProperty("os.name", "").startsWith("Mac")
-    private val isWindows = System.getProperty("os.name", "").startsWith("Windows")
-
     /**
-     * Extrae el MP3 de resources a un fichero temporal y lo reproduce.
+     * Extrae el MP3 de resources y lo reproduce en un coroutine de IO.
      * Si [loop] = true, repite hasta que se cancela el Job devuelto.
      */
     fun play(soundId: String, volume: Float, loop: Boolean = false): Job {
         return CoroutineScope(Dispatchers.IO).launch {
             val tmpFile = extractToTemp(soundId) ?: return@launch
             try {
-                val vol = volume.coerceIn(0f, 1f)
                 do {
-                    val cmd = buildCommand(tmpFile.absolutePath, vol)
-                    val process = ProcessBuilder(cmd)
-                        .redirectErrorStream(true)
-                        .start()
-
-                    withContext(Dispatchers.IO) {
-                        while (process.isAlive && isActive) delay(100)
-                        if (process.isAlive) process.destroyForcibly()
-                        process.waitFor()
-                    }
-                    if (!isActive) break
-                    if (loop && isActive) delay(500)
+                    playFile(tmpFile, volume.coerceIn(0f, 1f))
+                    if (loop && isActive) delay(300)
                 } while (loop && isActive)
+            } catch (_: CancellationException) {
+                // cancelled normally — no-op
             } catch (e: Exception) {
                 System.err.println("SoundPlayer[$soundId]: ${e.message}")
             } finally {
@@ -70,21 +58,48 @@ object SoundPlayer {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private fun buildCommand(path: String, volume: Float): List<String> = when {
-        isMac     -> listOf("afplay", "-v", volume.toString(), path)
-        isWindows -> listOf(
-            "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-            // WPF MediaPlayer incluido en Windows 10/11 sin dependencias extra
-            """
-            Add-Type -AssemblyName PresentationCore
-            ${'$'}mp = New-Object System.Windows.Media.MediaPlayer
-            ${'$'}mp.Open([Uri]"$path")
-            ${'$'}mp.Volume = $volume
-            ${'$'}mp.Play()
-            Start-Sleep -Milliseconds 30000
-            """.trimIndent()
+    private fun playFile(file: File, volume: Float) {
+        val audioStream = AudioSystem.getAudioInputStream(file)
+        val baseFormat  = audioStream.format
+        // mp3spi decodifica a PCM; necesitamos un formato PCM que la línea de salida acepte
+        val pcmFormat   = javax.sound.sampled.AudioFormat(
+            javax.sound.sampled.AudioFormat.Encoding.PCM_SIGNED,
+            baseFormat.sampleRate,
+            16,
+            baseFormat.channels,
+            baseFormat.channels * 2,
+            baseFormat.sampleRate,
+            false,
         )
-        else      -> listOf("mpg123", "-q", path)   // Linux fallback
+        val pcmStream = AudioSystem.getAudioInputStream(pcmFormat, audioStream)
+        val info      = javax.sound.sampled.DataLine.Info(SourceDataLine::class.java, pcmFormat)
+        val line      = AudioSystem.getLine(info) as SourceDataLine
+
+        line.open(pcmFormat)
+
+        // Control de volumen (dB) — convierte 0..1 a rango del control
+        if (line.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
+            val gain    = line.getControl(FloatControl.Type.MASTER_GAIN) as FloatControl
+            val minDb   = gain.minimum
+            val maxDb   = gain.maximum
+            // volumen 0 → mínimo; volumen 1 → máximo; escala logarítmica aproximada
+            val targetDb = minDb + (maxDb - minDb) * volume
+            gain.value  = targetDb.coerceIn(minDb, maxDb)
+        }
+
+        line.start()
+
+        val buf  = ByteArray(4096)
+        var read: Int
+        while (pcmStream.read(buf).also { read = it } != -1) {
+            line.write(buf, 0, read)
+            if (Thread.currentThread().isInterrupted) break
+        }
+
+        line.drain()
+        line.close()
+        pcmStream.close()
+        audioStream.close()
     }
 
     private fun extractToTemp(soundId: String): File? {
