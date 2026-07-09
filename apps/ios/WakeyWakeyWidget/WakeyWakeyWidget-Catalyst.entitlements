@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Sandbox: obligatorio en la Mac App Store -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- App group compartido con la app principal -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.sierraespada.wakeywakey</string>
+	</array>
+</dict>
+</plist>

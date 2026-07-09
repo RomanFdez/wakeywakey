@@ -13,6 +13,10 @@ struct WakeyWakeyApp: App {
 
     init() {
         EntitlementManager.shared.configure()
+        #if targetEnvironment(macCatalyst)
+        // En Mac la app es residente: un timer interno dispara las alertas.
+        DesktopAlertScheduler.shared.start()
+        #endif
     }
 
     var body: some Scene {

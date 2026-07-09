@@ -16,7 +16,7 @@ class CalendarService: ObservableObject {
     @Published var weekEvents:  [AnyMeeting] = []
 
     var isAuthorized: Bool {
-        if #available(iOS 17, *) {
+        if #available(iOS 17, macOS 14, *) {
             return calendarAuthStatus == .fullAccess
         } else {
             return calendarAuthStatus == .authorized
@@ -28,7 +28,7 @@ class CalendarService: ObservableObject {
     func requestCalendarAccess() async -> Bool {
         do {
             let granted: Bool
-            if #available(iOS 17, *) {
+            if #available(iOS 17, macOS 14, *) {
                 granted = try await store.requestFullAccessToEvents()
             } else {
                 granted = try await store.requestAccess(to: .event)
@@ -68,7 +68,6 @@ class CalendarService: ObservableObject {
 
     private func fetchAnyMeetings(from start: Date, to end: Date,
                                    enabledIds: Set<String>, settings: SettingsStore?) -> [AnyMeeting] {
-        let cal = Calendar.current
 
         let calendars: [EKCalendar]? = enabledIds.isEmpty
             ? nil
@@ -77,6 +76,9 @@ class CalendarService: ObservableObject {
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
         var events = store.events(matching: predicate)
 
+        // NOTA: "Working hours" NO se filtra aquí. Es un ajuste de *cuándo avisar*
+        // (lo aplica DesktopMacScheduler.passesWorkingHours), no de qué reuniones se
+        // muestran. Filtrarlo aquí ocultaría del panel reuniones fuera de 9-18h.
         if let s = settings {
             if !s.showAllDayEvents   { events = events.filter { !$0.isAllDay } }
             if s.videoConferenceOnly { events = events.filter { CalendarService.meetingLink(for: $0) != nil } }
@@ -86,12 +88,6 @@ class CalendarService: ObservableObject {
                           let me = attendees.first(where: { $0.isCurrentUser })
                     else { return true }
                     return me.participantStatus != .declined
-                }
-            }
-            if s.workingHoursOnly {
-                events = events.filter { event in
-                    let hour = cal.component(.hour, from: event.startDate)
-                    return hour >= s.workingHoursStart && hour < s.workingHoursEnd
                 }
             }
         } else {
@@ -114,6 +110,8 @@ class CalendarService: ObservableObject {
     }
 
     private nonisolated static func isMeetingURL(_ url: URL) -> Bool {
+        // Esquema nativo de FaceTime (facetime://, facetime-audio://): no tiene host útil.
+        if let scheme = url.scheme?.lowercased(), scheme.hasPrefix("facetime") { return true }
         let host = url.host ?? ""
         return calendarMeetingHosts.contains { host.contains($0) }
     }
@@ -135,4 +133,5 @@ private let calendarMeetingHosts = [
     "meet.google.com", "zoom.us", "teams.microsoft.com", "teams.live.com",
     "webex.com", "whereby.com", "jitsi", "gotomeeting.com", "bluejeans.com",
     "chime.aws", "around.co", "gather.town", "discord.com", "slack.com/huddle",
+    "facetime.apple.com",
 ]

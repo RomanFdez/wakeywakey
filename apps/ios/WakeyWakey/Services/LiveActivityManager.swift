@@ -1,5 +1,8 @@
-import ActivityKit
 import Foundation
+// Live Activities (ActivityKit) no existen en Mac Catalyst.
+// En Catalyst se compila el stub no-op del final del fichero.
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+import ActivityKit
 
 @available(iOS 16.2, *)
 @MainActor
@@ -102,3 +105,18 @@ class LiveActivityManager {
         }
     }
 }
+
+#else
+// Mac Catalyst: stub no-op con la misma API pública para que los call sites
+// (todos tras `if #available(iOS 16.2, *)`) compilen sin cambios.
+@available(iOS 16.2, *)
+@MainActor
+class LiveActivityManager {
+    static let shared = LiveActivityManager()
+    func start(for meeting: AnyMeeting) {}
+    func update(for meeting: AnyMeeting) {}
+    func markOngoing() {}
+    func end() {}
+    func sync(nextMeeting: AnyMeeting?) {}
+}
+#endif

@@ -1,6 +1,9 @@
 import WidgetKit
 import SwiftUI
+// ActivityKit (Live Activities) no existe en Mac Catalyst.
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
 import ActivityKit
+#endif
 
 // MARK: - Colors (duplicated — widget extension cannot import main app)
 
@@ -83,25 +86,29 @@ struct NextMeetingProvider: TimelineProvider {
             if m.startDate >= now { changeTimes.append(m.startDate) }
             if m.endDate   >= now { changeTimes.append(m.endDate)   }
         }
-        // Also refresh at midnight to catch tomorrow's data
-        if let midnight = Calendar.current.date(
-            byAdding: .day, value: 1,
-            to: Calendar.current.startOfDay(for: now)
-        ) { changeTimes.append(midnight) }
+        // Midnight + 6 AM next day — ensure widget refreshes overnight even if no meetings
+        let cal = Calendar.current
+        if let midnight = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: now)) {
+            changeTimes.append(midnight)
+            if let morning = cal.date(byAdding: .hour, value: 6, to: midnight) {
+                changeTimes.append(morning)
+            }
+        }
 
         let sortedTimes = changeTimes.sorted().uniqued()
         let entries = sortedTimes.prefix(20).map { MeetingEntry(date: $0, data: data) }
 
-        // Si los datos son de un día anterior, recargar agresivamente cada 10 min
-        // hasta que la app o el background task escriba datos frescos.
         let isStale = !Calendar.current.isDateInToday(data.lastUpdated)
-        let reloadInterval: TimeInterval = isStale ? 10 * 60 : 15 * 60
 
-        let reloadAfter = sortedTimes.last.map {
-            max($0, now.addingTimeInterval(reloadInterval))
-        } ?? now.addingTimeInterval(reloadInterval)
-
-        completion(Timeline(entries: Array(entries), policy: .after(reloadAfter)))
+        if isStale {
+            // Datos de otro día: recargar cuanto antes para no bloquear al usuario
+            completion(Timeline(entries: Array(entries), policy: .atEnd))
+        } else {
+            let reloadAfter = sortedTimes.last.map {
+                max($0, now.addingTimeInterval(15 * 60))
+            } ?? now.addingTimeInterval(15 * 60)
+            completion(Timeline(entries: Array(entries), policy: .after(reloadAfter)))
+        }
     }
 }
 
@@ -478,8 +485,9 @@ private struct CompactLabelStyle: LabelStyle {
     }
 }
 
-// MARK: - Live Activity (sin cambios)
+// MARK: - Live Activity (solo iOS — no existe en Mac Catalyst)
 
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
 @available(iOSApplicationExtension 16.2, *)
 struct MeetingLiveActivity: Widget {
     let kind = "MeetingLiveActivity"
@@ -585,3 +593,4 @@ private struct LockScreenLiveActivityView: View {
         .background(Color.wkNavy)
     }
 }
+#endif
