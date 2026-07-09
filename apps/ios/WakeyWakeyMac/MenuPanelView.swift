@@ -328,10 +328,11 @@ private struct MeetingRowMac: View {
 
     private var countdownText: String {
         if isOngoing { return "In progress" }
-        let mins = Int(meeting.startDate.timeIntervalSince(now) / 60)
-        if mins < 0 { return "Ended" }
-        if mins < 60 { return "In \(mins)m" }
-        let h = mins / 60, m = mins % 60
+        let secs = Int(meeting.startDate.timeIntervalSince(now))
+        if secs < 0 { return "Ended" }
+        // Redondeo hacia arriba: mientras no haya empezado nunca muestra "In 0m".
+        if secs < 3600 { return "In \((secs + 59) / 60)m" }
+        let mins = secs / 60, h = mins / 60, m = mins % 60
         return m == 0 ? "In \(h)h" : "In \(h)h \(m)m"
     }
 

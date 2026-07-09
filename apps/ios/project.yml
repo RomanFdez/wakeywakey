@@ -146,7 +146,7 @@ targets:
       base:
         CODE_SIGN_ENTITLEMENTS: WakeyWakeyMac/WakeyWakeyMac.entitlements
         MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "4"
+        CURRENT_PROJECT_VERSION: "5"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       configs:
         # DEV LOCAL (Debug): id propio para evitar colisión con la app JVM instalada

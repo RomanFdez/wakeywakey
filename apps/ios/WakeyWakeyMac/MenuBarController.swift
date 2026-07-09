@@ -88,8 +88,9 @@ final class MenuBarController: ObservableObject {
         let secs = Int(startDate.timeIntervalSince(now))
         if secs <= 0 { return "now" }
         if secs < 3600 {
+            // Redondeo hacia arriba: mientras no haya empezado nunca muestra 0m.
+            if minutesOnly { return "\((secs + 59) / 60)m" }
             let mm = secs / 60, ss = secs % 60
-            if minutesOnly { return "\(mm)m" }
             return mm > 0 ? "\(mm)m \(ss)s" : "\(ss)s"
         }
         let h = secs / 3600, mm = (secs % 3600) / 60
