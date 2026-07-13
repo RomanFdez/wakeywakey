@@ -332,8 +332,13 @@ private struct MeetingRowMac: View {
         if secs < 0 { return "Ended" }
         // Redondeo hacia arriba: mientras no haya empezado nunca muestra "In 0m".
         if secs < 3600 { return "In \((secs + 59) / 60)m" }
-        let mins = secs / 60, h = mins / 60, m = mins % 60
-        return m == 0 ? "In \(h)h" : "In \(h)h \(m)m"
+        if secs < 86_400 {
+            let h = secs / 3600, m = (secs % 3600) / 60
+            return m == 0 ? "In \(h)h" : "In \(h)h \(m)m"
+        }
+        // A partir de 24h: días + horas (más legible que "In 113h").
+        let d = secs / 86_400, h = (secs % 86_400) / 3600
+        return h == 0 ? "In \(d)d" : "In \(d)d \(h)h"
     }
 
     private var isImminent: Bool {
@@ -374,7 +379,7 @@ private struct MeetingRowMac: View {
             HStack(spacing: 6) {
                 if let url = meeting.meetingURL {
                     // Solo la cámara inicia la reunión.
-                    Button { NSWorkspace.shared.open(url) } label: {
+                    Button { MeetingLauncher.open(url) } label: {
                         Image(systemName: "video.fill")
                             .font(.system(size: 13))
                             .foregroundStyle(Color.wkYellow)

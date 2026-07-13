@@ -62,7 +62,7 @@ final class AlertWindowController {
             title: title, startDate: startDate, location: location,
             meetingURL: meetingURL, isPreview: isPreview,
             onJoin: { [weak self] in
-                if let url = meetingURL { NSWorkspace.shared.open(url) }
+                if let url = meetingURL { MeetingLauncher.open(url) }
                 self?.dismiss()
             },
             onDismiss: { [weak self] in self?.dismiss() },
