@@ -433,6 +433,13 @@ struct SettingsView: View {
             if let err = entitlement.restoreError {
                 Text(err).font(.system(size: 11)).foregroundStyle(.red)
             }
+            // 3.1.2(c): enlaces requeridos donde se ofrece la suscripción.
+            HStack(spacing: 14) {
+                Link("Privacy Policy", destination: PaywallView.privacyPolicyURL)
+                Link("Terms of Use (EULA)", destination: PaywallView.termsOfUseURL)
+            }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.white.opacity(0.55))
 
             // Solo visible en el Mac de desarrollo (DevGate). Nadie más lo ve.
             if DevGate.isDevMachine {

@@ -11,6 +11,10 @@ struct PaywallView: View {
     var onClose: () -> Void
     @StateObject private var entitlement = MacEntitlementManager.shared
 
+    // Requeridos por la review 3.1.2(c): enlaces funcionales a privacidad y EULA.
+    static let privacyPolicyURL = URL(string: "https://www.sierraespada.com/legal/privacy/")!
+    static let termsOfUseURL    = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+
     private let perks = [
         "Full-screen meeting alerts you can't miss",
         "Unlimited calendars",
@@ -45,7 +49,9 @@ struct PaywallView: View {
                         HStack {
                             Text(pkg.storeProduct.localizedTitle).fontWeight(.semibold)
                             Spacer()
-                            Text(pkg.storeProduct.localizedPriceString).fontWeight(.bold)
+                            // 3.1.2(c): precio + duración de la suscripción visibles.
+                            Text(pkg.storeProduct.localizedPriceString + Self.periodSuffix(pkg))
+                                .fontWeight(.bold)
                         }
                         .foregroundStyle(Color.wkNavy)
                         .padding(.horizontal, 16).padding(.vertical, 11)
@@ -66,9 +72,42 @@ struct PaywallView: View {
                 Button("Maybe later") { onClose() }
                     .buttonStyle(.plain).foregroundStyle(.white.opacity(0.5)).font(.system(size: 12))
             }
+
+            // 3.1.2(c): nota de renovación + enlaces funcionales a privacidad y EULA.
+            VStack(spacing: 6) {
+                Text("Subscriptions renew automatically unless cancelled at least 24 hours before the end of the period. Manage or cancel anytime in your App Store account settings.")
+                    .font(.system(size: 10)).foregroundStyle(.white.opacity(0.35))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 14) {
+                    Link("Privacy Policy", destination: Self.privacyPolicyURL)
+                    Link("Terms of Use (EULA)", destination: Self.termsOfUseURL)
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.55))
+            }
+            .padding(.top, 2)
         }
         .frame(width: 380)
         .padding(28)
         .background(Color.wkNavy)
+    }
+
+    /// Sufijo de duración para el botón de compra ("/ month", "/ year"; lifetime sin sufijo).
+    private static func periodSuffix(_ pkg: Package) -> String {
+        switch pkg.packageType {
+        case .monthly:  return " / month"
+        case .annual:   return " / year"
+        case .weekly:   return " / week"
+        case .lifetime: return ""
+        default:
+            guard let unit = pkg.storeProduct.subscriptionPeriod?.unit else { return "" }
+            switch unit {
+            case .month: return " / month"
+            case .year:  return " / year"
+            case .week:  return " / week"
+            case .day:   return " / day"
+            }
+        }
     }
 }
