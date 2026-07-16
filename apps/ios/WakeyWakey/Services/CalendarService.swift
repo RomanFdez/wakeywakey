@@ -7,6 +7,28 @@ class CalendarService: ObservableObject {
     static let shared = CalendarService()
 
     private let store = EKEventStore()
+    private var storeObserver: NSObjectProtocol?
+    // Últimos parámetros de carga, para poder recargar al detectar cambios del sistema.
+    private var lastEnabledIds: Set<String> = []
+    private var lastSettings: SettingsStore?
+
+    init() {
+        // El sistema avisa cuando el calendario cambia (evento movido/cancelado/creado,
+        // sync de Exchange/iCloud…). Sin esto, el EKEventStore sirve caché rancia.
+        storeObserver = NotificationCenter.default.addObserver(
+            forName: .EKEventStoreChanged, object: store, queue: .main
+        ) { _ in
+            Task { @MainActor in CalendarService.shared.systemCalendarChanged() }
+        }
+    }
+
+    private func systemCalendarChanged() {
+        store.refreshSourcesIfNecessary()
+        guard isAuthorized else { return }
+        loadCalendars()
+        loadTodayEvents(enabledIds: lastEnabledIds, settings: lastSettings)
+        loadWeekEvents(enabledIds: lastEnabledIds, settings: lastSettings)
+    }
 
     @Published var calendarAuthStatus: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
     @Published var availableCalendars: [EKCalendar] = []
@@ -50,6 +72,7 @@ class CalendarService: ObservableObject {
 
     func loadTodayEvents(enabledIds: Set<String>, settings: SettingsStore? = nil) {
         guard isAuthorized else { return }
+        lastEnabledIds = enabledIds; lastSettings = settings ?? lastSettings
         let cal   = Calendar.current
         let start = cal.startOfDay(for: Date())
         let end   = cal.date(byAdding: .day, value: 1, to: start)!
@@ -58,6 +81,7 @@ class CalendarService: ObservableObject {
 
     func loadWeekEvents(enabledIds: Set<String>, settings: SettingsStore? = nil) {
         guard isAuthorized else { return }
+        lastEnabledIds = enabledIds; lastSettings = settings ?? lastSettings
         let cal   = Calendar.current
         let start = cal.startOfDay(for: Date())
         let end   = cal.date(byAdding: .day, value: 7, to: start)!
@@ -72,6 +96,9 @@ class CalendarService: ObservableObject {
         let calendars: [EKCalendar]? = enabledIds.isEmpty
             ? nil
             : store.calendars(for: .event).filter { enabledIds.contains($0.calendarIdentifier) }
+
+        // Sincroniza el store con la BD del sistema si hace falta (barato: "if necessary").
+        store.refreshSourcesIfNecessary()
 
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
         var events = store.events(matching: predicate)

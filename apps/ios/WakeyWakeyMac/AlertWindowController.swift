@@ -14,24 +14,45 @@ final class AlertWindowController {
     private var audioPlayer: AVAudioPlayer?
     private var soundStopWork: DispatchWorkItem?
 
-    func show(title: String, startDate: Date, location: String?, meetingURL: URL?, isPreview: Bool = false) {
-        dismiss()
+    /// Reuniones simultáneas: si ya hay una alerta en pantalla, las siguientes
+    /// esperan en cola y aparecen al descartar (Dismiss/Join/Snooze) la actual.
+    private struct PendingAlert {
+        let title: String; let startDate: Date
+        let location: String?; let meetingURL: URL?; let isPreview: Bool
+    }
+    private var queue: [PendingAlert] = []
 
+    func show(title: String, startDate: Date, location: String?, meetingURL: URL?, isPreview: Bool = false) {
+        let alert = PendingAlert(title: title, startDate: startDate, location: location,
+                                 meetingURL: meetingURL, isPreview: isPreview)
+        if windows.isEmpty {
+            display(alert)
+        } else {
+            queue.append(alert)
+        }
+    }
+
+    func dismiss() {
+        teardown()
+        if !queue.isEmpty { display(queue.removeFirst()) }
+    }
+
+    private func display(_ a: PendingAlert) {
         let screens: [NSScreen] = MacSettings.shared.alertActiveScreenOnly
             ? [activeScreen()]
             : NSScreen.screens
 
         for screen in screens {
-            windows.append(makeWindow(on: screen, title: title, startDate: startDate,
-                                      location: location, meetingURL: meetingURL, isPreview: isPreview))
+            windows.append(makeWindow(on: screen, title: a.title, startDate: a.startDate,
+                                      location: a.location, meetingURL: a.meetingURL, isPreview: a.isPreview))
         }
 
         NSApp.activate(ignoringOtherApps: true)
         windows.forEach { $0.makeKeyAndOrderFront(nil) }
-        playSound(loop: !isPreview && SettingsStore.shared.repeatSoundUntilDismiss)
+        playSound(loop: !a.isPreview && SettingsStore.shared.repeatSoundUntilDismiss)
     }
 
-    func dismiss() {
+    private func teardown() {
         soundStopWork?.cancel()
         soundStopWork = nil
         audioPlayer?.stop()
