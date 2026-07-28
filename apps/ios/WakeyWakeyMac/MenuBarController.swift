@@ -14,6 +14,10 @@ final class MenuBarController: ObservableObject {
     private var timer: Timer?
     private var lastLoad = Date.distantPast
 
+    /// Hueco máximo para considerar dos reuniones encadenadas (cubre el patrón
+    /// de Outlook/Teams de acortar reuniones: 10:00–10:50 y la siguiente a las 11:00).
+    private static let contiguousGap: TimeInterval = 10 * 60
+
     private init() {}
 
     func start() {
@@ -44,7 +48,19 @@ final class MenuBarController: ObservableObject {
             .filter { $0.endDate > now }
             .sorted { $0.startDate < $1.startDate }
 
-        guard let next = upcoming.first else { menuBarTitle = ""; return }
+        guard var next = upcoming.first else { menuBarTitle = ""; return }
+
+        // Reunión en curso encadenada con otra: pasada la mitad de la actual, mostramos
+        // ya la siguiente. Si no, con reuniones seguidas nunca se vería venir la próxima.
+        if next.startDate <= now, upcoming.count > 1 {
+            let following = upcoming[1]
+            let gap = following.startDate.timeIntervalSince(next.endDate)
+            let midpoint = next.startDate.addingTimeInterval(
+                next.endDate.timeIntervalSince(next.startDate) / 2)
+            if gap <= Self.contiguousGap, following.startDate > now, now >= midpoint {
+                next = following
+            }
+        }
 
         let isToday    = cal.isDateInToday(next.startDate)
         let isTomorrow = cal.isDateInTomorrow(next.startDate)
