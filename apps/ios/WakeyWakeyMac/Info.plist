@@ -28,5 +28,7 @@
 	<string>WakeyWakey necesita acceso completo al calendario para mostrarte tus reuniones y avisarte antes de que empiecen.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>WakeyWakey necesita acceso al calendario para mostrarte tus reuniones.</string>
+	<key>WWSentryDSN</key>
+	<string>$(SENTRY_DSN)</string>
 </dict>
 </plist>
