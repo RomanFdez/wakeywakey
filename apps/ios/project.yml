@@ -148,6 +148,9 @@ targets:
     settings:
       base:
         CODE_SIGN_ENTITLEMENTS: WakeyWakeyMac/WakeyWakeyMac.entitlements
+        # Sin esto, el strip reescribe el binario de Sentry.framework y cambia sus
+        # UUID → ningún dSYM coincide y el envío a ASC avisa de símbolos ausentes.
+        STRIP_INSTALLED_PRODUCT: NO
         MARKETING_VERSION: "1.0.1"
         CURRENT_PROJECT_VERSION: "8"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -168,7 +171,7 @@ targets:
       - package: RevenueCat
         product: RevenueCat
       - package: Sentry
-        product: Sentry
+        product: Sentry-Dynamic
     info:
       path: WakeyWakeyMac/Info.plist
       properties:
