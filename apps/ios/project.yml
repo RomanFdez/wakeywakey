@@ -43,6 +43,9 @@ packages:
   RevenueCat:
     url: https://github.com/RevenueCat/purchases-ios
     minorVersion: 5.0.0
+  Sentry:
+    url: https://github.com/getsentry/sentry-cocoa
+    minorVersion: 8.40.0
 
 settings:
   base:
@@ -156,15 +159,24 @@ targets:
         # TIENDA (Release): id compartido con iOS → Universal Purchase. Es lo que se archiva/sube.
         Release:
           PRODUCT_BUNDLE_IDENTIFIER: com.sierraespada.wakeywakey
+    # DSN de Sentry: nunca en el repo (ver Secrets.xcconfig.example). Sin fichero
+    # o sin valor, CrashReporting queda desactivado y la app funciona igual.
+    configFiles:
+      Debug: WakeyWakeyMac/Secrets.xcconfig
+      Release: WakeyWakeyMac/Secrets.xcconfig
     dependencies:
       - package: RevenueCat
         product: RevenueCat
+      - package: Sentry
+        product: Sentry
     info:
       path: WakeyWakeyMac/Info.plist
       properties:
         CFBundleDisplayName: WakeyWakey
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Inyectado desde Secrets.xcconfig (sin el esquema https://, ver CrashReporting)
+        WWSentryDSN: "$(SENTRY_DSN)"
         # Categoría (obligatoria en la Mac App Store)
         LSApplicationCategoryType: public.app-category.productivity
         # App de barra de menú: sin icono en el Dock, sin ventana principal
