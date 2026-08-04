@@ -1,5 +1,7 @@
-import ActivityKit
 import Foundation
+// Live Activities (ActivityKit) no existen en Mac Catalyst.
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+import ActivityKit
 
 @available(iOS 16.2, *)
 struct MeetingActivityAttributes: ActivityAttributes {
@@ -13,3 +15,4 @@ struct MeetingActivityAttributes: ActivityAttributes {
 
     var calendarName: String?
 }
+#endif

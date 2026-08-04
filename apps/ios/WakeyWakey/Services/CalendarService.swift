@@ -7,6 +7,28 @@ class CalendarService: ObservableObject {
     static let shared = CalendarService()
 
     private let store = EKEventStore()
+    private var storeObserver: NSObjectProtocol?
+    // Últimos parámetros de carga, para poder recargar al detectar cambios del sistema.
+    private var lastEnabledIds: Set<String> = []
+    private var lastSettings: SettingsStore?
+
+    init() {
+        // El sistema avisa cuando el calendario cambia (evento movido/cancelado/creado,
+        // sync de Exchange/iCloud…). Sin esto, el EKEventStore sirve caché rancia.
+        storeObserver = NotificationCenter.default.addObserver(
+            forName: .EKEventStoreChanged, object: store, queue: .main
+        ) { _ in
+            Task { @MainActor in CalendarService.shared.systemCalendarChanged() }
+        }
+    }
+
+    private func systemCalendarChanged() {
+        store.refreshSourcesIfNecessary()
+        guard isAuthorized else { return }
+        loadCalendars()
+        loadTodayEvents(enabledIds: lastEnabledIds, settings: lastSettings)
+        loadWeekEvents(enabledIds: lastEnabledIds, settings: lastSettings)
+    }
 
     @Published var calendarAuthStatus: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
     @Published var availableCalendars: [EKCalendar] = []
@@ -16,7 +38,7 @@ class CalendarService: ObservableObject {
     @Published var weekEvents:  [AnyMeeting] = []
 
     var isAuthorized: Bool {
-        if #available(iOS 17, *) {
+        if #available(iOS 17, macOS 14, *) {
             return calendarAuthStatus == .fullAccess
         } else {
             return calendarAuthStatus == .authorized
@@ -28,7 +50,7 @@ class CalendarService: ObservableObject {
     func requestCalendarAccess() async -> Bool {
         do {
             let granted: Bool
-            if #available(iOS 17, *) {
+            if #available(iOS 17, macOS 14, *) {
                 granted = try await store.requestFullAccessToEvents()
             } else {
                 granted = try await store.requestAccess(to: .event)
@@ -50,6 +72,7 @@ class CalendarService: ObservableObject {
 
     func loadTodayEvents(enabledIds: Set<String>, settings: SettingsStore? = nil) {
         guard isAuthorized else { return }
+        lastEnabledIds = enabledIds; lastSettings = settings ?? lastSettings
         let cal   = Calendar.current
         let start = cal.startOfDay(for: Date())
         let end   = cal.date(byAdding: .day, value: 1, to: start)!
@@ -58,6 +81,7 @@ class CalendarService: ObservableObject {
 
     func loadWeekEvents(enabledIds: Set<String>, settings: SettingsStore? = nil) {
         guard isAuthorized else { return }
+        lastEnabledIds = enabledIds; lastSettings = settings ?? lastSettings
         let cal   = Calendar.current
         let start = cal.startOfDay(for: Date())
         let end   = cal.date(byAdding: .day, value: 7, to: start)!
@@ -68,15 +92,20 @@ class CalendarService: ObservableObject {
 
     private func fetchAnyMeetings(from start: Date, to end: Date,
                                    enabledIds: Set<String>, settings: SettingsStore?) -> [AnyMeeting] {
-        let cal = Calendar.current
 
         let calendars: [EKCalendar]? = enabledIds.isEmpty
             ? nil
             : store.calendars(for: .event).filter { enabledIds.contains($0.calendarIdentifier) }
 
+        // Sincroniza el store con la BD del sistema si hace falta (barato: "if necessary").
+        store.refreshSourcesIfNecessary()
+
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
         var events = store.events(matching: predicate)
 
+        // NOTA: "Working hours" NO se filtra aquí. Es un ajuste de *cuándo avisar*
+        // (lo aplica DesktopMacScheduler.passesWorkingHours), no de qué reuniones se
+        // muestran. Filtrarlo aquí ocultaría del panel reuniones fuera de 9-18h.
         if let s = settings {
             if !s.showAllDayEvents   { events = events.filter { !$0.isAllDay } }
             if s.videoConferenceOnly { events = events.filter { CalendarService.meetingLink(for: $0) != nil } }
@@ -86,12 +115,6 @@ class CalendarService: ObservableObject {
                           let me = attendees.first(where: { $0.isCurrentUser })
                     else { return true }
                     return me.participantStatus != .declined
-                }
-            }
-            if s.workingHoursOnly {
-                events = events.filter { event in
-                    let hour = cal.component(.hour, from: event.startDate)
-                    return hour >= s.workingHoursStart && hour < s.workingHoursEnd
                 }
             }
         } else {
@@ -114,6 +137,8 @@ class CalendarService: ObservableObject {
     }
 
     private nonisolated static func isMeetingURL(_ url: URL) -> Bool {
+        // Esquema nativo de FaceTime (facetime://, facetime-audio://): no tiene host útil.
+        if let scheme = url.scheme?.lowercased(), scheme.hasPrefix("facetime") { return true }
         let host = url.host ?? ""
         return calendarMeetingHosts.contains { host.contains($0) }
     }
@@ -135,4 +160,5 @@ private let calendarMeetingHosts = [
     "meet.google.com", "zoom.us", "teams.microsoft.com", "teams.live.com",
     "webex.com", "whereby.com", "jitsi", "gotomeeting.com", "bluejeans.com",
     "chime.aws", "around.co", "gather.town", "discord.com", "slack.com/huddle",
+    "facetime.apple.com",
 ]

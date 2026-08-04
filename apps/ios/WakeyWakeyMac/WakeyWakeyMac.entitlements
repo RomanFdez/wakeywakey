@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Sandbox: obligatorio en la Mac App Store -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- EventKit: leer el calendario del usuario -->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
+	<!-- Red saliente: RevenueCat / App Store -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- NOTA: el app-group (compartir datos con el widget) se añadirá cuando
+	     volvamos al bundle id compartido con iOS. No hace falta para la UI. -->
+</dict>
+</plist>

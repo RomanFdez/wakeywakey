@@ -33,7 +33,7 @@ class EntitlementManager: ObservableObject {
         let installDate = Self.getOrSetInstallDate()
         let elapsed     = Calendar.current.dateComponents([.day], from: installDate, to: Date()).day ?? 0
         trialDaysLeft   = max(0, Self.trialDays - elapsed)
-        isPro           = trialDaysLeft > 0   // actualizado cuando RevenueCat responda
+        isPro           = true   // optimista — updateIsPro() lo corrige cuando RevenueCat responda
     }
 
     // MARK: - Configurar RevenueCat (llamar en App.init)
