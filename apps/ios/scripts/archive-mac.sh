@@ -19,6 +19,23 @@ TEAM="S3SQHNG68C"
 echo "▸ Generando proyecto…"
 xcodegen generate >/dev/null
 
+# Los xcframeworks precompilados traen una slice arm64e que App Store Connect
+# rechaza ("The osx 26 SDK or later is required for an arm64e slice"). Se quita
+# aquí, antes de archivar, para que Xcode embeba y firme ya el binario correcto.
+# `lipo -remove` copia el resto de slices tal cual → los UUID no cambian y los
+# dSYM siguen coincidiendo.
+DERIVED_ROOT=$(xcodebuild -project WakeyWakey.xcodeproj -scheme WakeyWakeyMac -showBuildSettings 2>/dev/null \
+               | awk '/ BUILD_DIR /{print $3}' | head -1)
+ARTIFACTS="${DERIVED_ROOT%/Build/*}/SourcePackages/artifacts"
+while IFS= read -r fw; do
+  bin="$fw/Versions/A/$(basename "$fw" .framework)"
+  [[ -f "$bin" ]] || continue
+  if lipo -archs "$bin" 2>/dev/null | grep -qw arm64e; then
+    echo "   − arm64e de $(basename "$fw")"
+    lipo "$bin" -remove arm64e -output "$bin.thin" && mv "$bin.thin" "$bin"
+  fi
+done < <(find "$ARTIFACTS" -maxdepth 4 -path "*macos*" -name "*.framework" -type d 2>/dev/null)
+
 echo "▸ Archivando…"
 rm -rf "$ARCHIVE"
 xcodebuild -project WakeyWakey.xcodeproj -scheme WakeyWakeyMac -configuration Release \
