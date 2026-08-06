@@ -8,19 +8,35 @@ final class DesktopMacScheduler {
 
     static let shared = DesktopMacScheduler()
 
-    private let checkInterval: TimeInterval = 15
+    // Se comprueba cada segundo para que la alerta salte a la hora exacta: con un
+    // intervalo mayor, saltaba en el siguiente tick (hasta 15 s tarde). El fetch de
+    // EventKit es lo caro, así que se recarga solo cada `reloadInterval`.
+    private let checkInterval: TimeInterval = 1
+    private let reloadInterval: TimeInterval = 30
     private let lateGrace: TimeInterval = 2 * 60   // no disparar reuniones empezadas hace >2 min
 
     private var timer: Timer?
     private var handledIds = Set<String>()
+    private var lastLoad = Date.distantPast
+    /// Evita que App Nap ralentice el timer: sin esto macOS agrupa y retrasa los
+    /// disparos de una app de fondo (que es lo que siempre es una app de barra de
+    /// menús) y la alerta llega tarde. Permite dormir el equipo: con el Mac dormido
+    /// no hay alerta que mostrar y bloquear el sueño gastaría batería sin motivo.
+    private var activityToken: NSObjectProtocol?
 
     private init() {}
 
     func start() {
         stop()
+        if activityToken == nil {
+            activityToken = ProcessInfo.processInfo.beginActivity(
+                options: .userInitiatedAllowingIdleSystemSleep,
+                reason: "Avisar de las reuniones a su hora")
+        }
         let t = Timer(timeInterval: checkInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
+        t.tolerance = 0            // sin margen: el sistema no puede agrupar el disparo
         RunLoop.main.add(t, forMode: .common)
         timer = t
         tick()
@@ -44,7 +60,9 @@ final class DesktopMacScheduler {
 
         let settings = SettingsStore.shared
         let cal = CalendarService.shared
-        if cal.isAuthorized {
+        let now = Date()
+        if cal.isAuthorized, now.timeIntervalSince(lastLoad) >= reloadInterval {
+            lastLoad = now
             cal.loadTodayEvents(enabledIds: settings.enabledCalendarIds, settings: settings)
         }
 
@@ -52,7 +70,6 @@ final class DesktopMacScheduler {
             + ManualEventsStore.shared.todayEvents.map { AnyMeeting(manual: $0) }
 
         let minutesBefore = settings.alertMinutesBefore
-        let now = Date()
 
         for meeting in events {
             guard !handledIds.contains(meeting.id) else { continue }
