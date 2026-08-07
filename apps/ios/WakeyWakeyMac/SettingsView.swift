@@ -271,6 +271,14 @@ struct SettingsView: View {
         }
     }
 
+    /// Versión real del bundle: escribirla a mano se quedaba desfasada en cada release.
+    private static var versionLabel: String {
+        let info = Bundle.main.infoDictionary
+        let v = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let b = info?["CFBundleVersion"] as? String ?? "?"
+        return "WakeyWakey \(v) (\(b))"
+    }
+
     private static let freeSoundIds = ["notification-1", "notification-2", "notification-3"]
 
     private var soundOptions: [AlertSound] {
@@ -450,7 +458,7 @@ struct SettingsView: View {
             }
 
             Divider().overlay(Color.white.opacity(0.08)).padding(.vertical, 8)
-            Text("WakeyWakey 1.0.0")
+            Text(Self.versionLabel)
                 .font(.system(size: 12)).foregroundStyle(.white.opacity(0.4))
         }
     }
