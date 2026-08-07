@@ -436,6 +436,10 @@ struct SettingsView: View {
                     .font(.system(size: 11)).foregroundStyle(.white.opacity(0.4))
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if let err = entitlement.purchaseError {
+                Text(err).font(.system(size: 11)).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Button("Restore purchases") { Task { await entitlement.restore() } }
                 .buttonStyle(.plain).foregroundStyle(Color.wkYellow).font(.system(size: 12, weight: .semibold))
             if let err = entitlement.restoreError {

@@ -66,6 +66,12 @@ struct PaywallView: View {
                     .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
             }
 
+            if let err = entitlement.purchaseError {
+                Text(err)
+                    .font(.system(size: 11)).foregroundStyle(.red)
+                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+            }
+
             HStack(spacing: 16) {
                 Button("Restore") { Task { await entitlement.restore() } }
                     .buttonStyle(.plain).foregroundStyle(Color.wkYellow).font(.system(size: 12, weight: .semibold))

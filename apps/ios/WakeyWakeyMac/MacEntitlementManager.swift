@@ -19,6 +19,7 @@ final class MacEntitlementManager: ObservableObject {
     @Published var offerings: Offerings?
     @Published var isLoading = false
     @Published var restoreError: String?
+    @Published var purchaseError: String?
 
     private var isRevenueCatPro = false
     private let installKey = "ww_install_date"
@@ -47,12 +48,25 @@ final class MacEntitlementManager: ObservableObject {
     }
 
     func purchase(_ package: Package) async {
-        isLoading = true; defer { isLoading = false }
+        isLoading = true; purchaseError = nil; defer { isLoading = false }
         do {
             let result = try await Purchases.shared.purchase(package: package)
+            if result.userCancelled { return }
             isRevenueCatPro = result.customerInfo.entitlements.active[Self.entitlementID] != nil
             updateIsPro()
-        } catch { /* cancelado o error */ }
+            if !isRevenueCatPro {
+                purchaseError = "The purchase went through but Pro isn't active yet. Try 'Restore purchases'."
+            }
+        } catch {
+            // Antes se descartaba en silencio: al fallar no ocurría nada en pantalla.
+            let e = error as NSError
+            if (error as? RevenueCat.ErrorCode) == .purchaseCancelledError { return }
+            purchaseError = error.localizedDescription
+            CrashReporting.capture(error, context: [
+                "package": package.identifier,
+                "code": "\(e.code)",
+            ])
+        }
     }
 
     func restore() async {
