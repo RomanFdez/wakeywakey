@@ -20,6 +20,7 @@ final class MacEntitlementManager: ObservableObject {
     @Published var isLoading = false
     @Published var restoreError: String?
     @Published var purchaseError: String?
+    @Published var offeringsError: String?
 
     private var isRevenueCatPro = false
     private let installKey = "ww_install_date"
@@ -43,7 +44,20 @@ final class MacEntitlementManager: ObservableObject {
                 isRevenueCatPro = info.entitlements.active[Self.entitlementID] != nil
                 updateIsPro()
                 offerings = try await Purchases.shared.offerings()
-            } catch { /* sin red: mantener estado del trial */ }
+                // Una oferta sin paquetes suele significar que StoreKit no encuentra los
+                // productos (ids que no cuadran con App Store Connect, o build con otro
+                // bundle id). Sin este aviso el paywall solo se veía vacío.
+                if offerings?.current?.availablePackages.isEmpty ?? true {
+                    CrashReporting.capture(
+                        NSError(domain: "WakeyWakey", code: 1, userInfo: [
+                            NSLocalizedDescriptionKey: "Offering without available packages",
+                            "offering": offerings?.current?.identifier ?? "nil",
+                        ]))
+                }
+            } catch {
+                offeringsError = error.localizedDescription
+                CrashReporting.capture(error, context: ["stage": "offerings"])
+            }
         }
     }
 
