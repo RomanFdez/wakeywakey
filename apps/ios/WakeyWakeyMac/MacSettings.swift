@@ -27,6 +27,10 @@ final class MacSettings: ObservableObject {
     // barra de debug para hacer capturas limpias.
     @Published var showDebugBar: Bool      { didSet { save(\.showDebugBar, "mb_show_debug_bar") } }
 
+    /// Si ya se activó el arranque al iniciar sesión la primera vez. Se guarda para
+    /// no volver a forzarlo: si el usuario lo desactiva, se respeta.
+    @Published var didSetUpLoginItem: Bool { didSet { save(\.didSetUpLoginItem, "mac_login_item_setup") } }
+
     private func save(_ kp: KeyPath<MacSettings, Bool>, _ key: String) {
         d.set(self[keyPath: kp], forKey: key)
     }
@@ -43,5 +47,6 @@ final class MacSettings: ObservableObject {
         monochromeIcon    = d.value(forKey: "mb_mono_icon") as? Bool ?? false
         menuTextColor     = d.string(forKey: "mb_text_color") ?? "auto"
         showDebugBar      = d.value(forKey: "mb_show_debug_bar") as? Bool ?? true
+        didSetUpLoginItem = d.value(forKey: "mac_login_item_setup") as? Bool ?? false
     }
 }

@@ -27,6 +27,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         CrashReporting.start()
+        // Una app de alertas que no está arrancada no sirve de nada, y el usuario no
+        // se entera de que dejó de estarlo: si macOS la cierra o se cierra sesión, no
+        // volvía nunca salvo que hubiese marcado el ajuste a mano. Se registra la
+        // primera vez; si luego lo desactiva en Ajustes, no se vuelve a forzar.
+        // Solo en release: un build de desarrollo no debe secuestrar el arranque.
+        #if !DEBUG
+        if !MacSettings.shared.didSetUpLoginItem {
+            MacSettings.shared.didSetUpLoginItem = true
+            LoginItemManager.setEnabled(true)
+        }
+        #endif
         MacEntitlementManager.shared.configure()
         MenuBarController.shared.start()
         DesktopMacScheduler.shared.start()
